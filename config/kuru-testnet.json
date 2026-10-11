@@ -1,0 +1,22 @@
+{
+  "source": "https://kuru-testnet-docs.mintlify.site/deployments/testnet",
+  "reviewed_on": "2026-10-11",
+  "purpose": "V2 existing-market baseline only; product deployment version not selected",
+  "chain_id": 10143,
+  "contracts": {
+    "account_core": "0xdbaaDe7B42c95399bb1E9614D51B5B9e2cf78038",
+    "router": "0xf75A7529b83941e001d7D9bc113A73C92112947E",
+    "withdrawal_limiter": "0x6d9599d6B9A5Cf601C2cdBc43fF170462B256fe0"
+  },
+  "implementations": {
+    "account_core": "0x980719BFCE5bf47FBe6951676086BdE2fd8452B1",
+    "router": "0xE44e83E71F6058e1179d1E187dc790aEDDB242B5",
+    "withdrawal_limiter": "0xC59dca3F3815B42E59ADe447C294C07B1788D783",
+    "known_market": "0xa4171E141A3Cf7801d7f06C126284aC0a509e6a9"
+  },
+  "market": "0x9d187971B64505Ac81f12c5FD2ac9c5247Ec62F3",
+  "quote_token": "0xA402B424f392EAA05DBc8779e4502A1F6A96fEF1",
+  "quote_decimals": 6,
+  "bounty_faucet_source": "https://gist.github.com/devblixt/80740a416ddc6afd2618c365b1f6cf98",
+  "bounty_faucet_quote_token": "0xEe0722ead54f1B4fe97bE399Be43BC0226a6f97E"
+}
