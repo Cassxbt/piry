@@ -16,6 +16,8 @@ make verify
 
 `forge build` obtains the pinned compiler on the first run. `make verify` runs Python tests and Solidity unit/fuzz tests offline; no wallet, credentials or funds are needed.
 
+Current verification: **50 Solidity tests and 9 Python tests pass**, including five fuzz properties run with 512 cases each. Attack tests cover reentrant collateral callbacks, false-return transfers, sender surcharges and rollback of balances and claim burns.
+
 The compiler targets Osaka following [Monad’s compiler guidance](https://docs.monad.xyz/tooling-and-infra/toolkits/hardhat). Local EVM tests do not establish Monad-specific gas or execution parity. [Monad’s Foundry guide](https://docs.monad.xyz/tooling-and-infra/toolkits/foundry) specifies Foundry 1.8+ and `network = "monad"` for that separate verification step.
 
 ## Contract lifecycle
