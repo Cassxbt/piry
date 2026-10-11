@@ -16,7 +16,7 @@ make verify
 
 `forge build` obtains the pinned compiler on the first run. `make verify` runs Python tests and Solidity unit/fuzz tests offline; no wallet, credentials or funds are needed.
 
-Current verification: **50 Solidity tests and 9 Python tests pass**, including five fuzz properties run with 512 cases each. Attack tests cover reentrant collateral callbacks, false-return transfers, sender surcharges and rollback of balances and claim burns.
+Current verification: **66 Solidity tests and 9 Python tests pass**, including six fuzz properties run with 512 cases each. Attack tests cover reentrant collateral callbacks, false-return transfers, sender surcharges and rollback of balances and claim burns.
 
 The compiler targets Osaka following [Monad’s compiler guidance](https://docs.monad.xyz/tooling-and-infra/toolkits/hardhat). Local EVM tests do not establish Monad-specific gas or execution parity. [Monad’s Foundry guide](https://docs.monad.xyz/tooling-and-infra/toolkits/foundry) specifies Foundry 1.8+ and `network = "monad"` for that separate verification step.
 
@@ -37,9 +37,19 @@ short payout = floor(q × clamp(U − P, 0, U − L) / (U − L))
 
 Illustration: 1,000 collateral units mint 1,000 of each claim. With bounds $2–$4 per GPU-hour and a settlement price of $3.50, the long claims redeem for 750 collateral units and the short claims for 250. This is payout arithmetic, not a quoted premium or a validated customer hedge.
 
+## CRE settlement receiver
+
+Deploy `SettlementReceiver(forwarder, workflowId)` first, then use its address as the market's `settlementAuthority`. One receiver may serve multiple series; each signed report explicitly identifies its destination market and chain. There are no administrative setters. Changing the authorized workflow requires a new receiver and market series.
+
+The workflow ID depends on its final binary, configuration and owner. When configuration includes receiver/market addresses, predict their CREATE addresses from the controlled deployment nonce sequence before computing the final workflow ID. Verify the deployed addresses and registered ID before activation. Do not deploy with a placeholder ID or update a pinned workflow while its series remain unsettled. See the [CRE workflow hash command](https://docs.chain.link/cre/reference/cli/workflow#cre-workflow-hash).
+
+The receiver implements ERC165 and `onReport(bytes,bytes)`. It checks the caller, requires the production 64-byte metadata layout and verifies the workflow ID before decoding the 320-byte `ComputeMarket.Report` payload. The market then enforces its committed series fields, time bounds and one-time settlement. Failed validation reverts without consuming settlement.
+
+[Chainlink's consumer contract guide](https://docs.chain.link/cre/guides/workflow/using-evm-client/onchain-write/building-consumer-contracts) documents the metadata layout and simulation limitation. Its simulation forwarder omits workflow identity metadata, so this strict receiver intentionally rejects that route. A successful CLI dry run or outer transaction alone must not be reported as authenticated settlement: verify the intended market's `Settled` event and stored price/evidence hash. Production forwarder identity and deployment code must be checked for the selected network before deployment.
+
 ## Trust and limitations
 
-- **Settlement authority:** the contract authenticates one configured address. The current tests use a local test authority. No CRE receiver, workflow or external data verification is implemented yet.
+- **Settlement authority:** configure the market with `SettlementReceiver` as its immutable authority. The receiver trusts one immutable forwarder and exact nonzero workflow ID. Its tests use a local transport fixture without DON signatures. No live CRE delivery is established.
 - **Data validity:** publication-time checks, period binding and an evidence hash do not prove price accuracy, complete observations or source freshness. The future workflow must verify these against the committed index specification. `publishedAt` means report publication time, not source observation time.
 - **Oracle liveness:** there is no timeout price, cancellation payout or administrative override. Without settlement, unmatched claims remain locked. Matched pairs can still be merged.
 - **Rounding:** each leg rounds down independently. Small fragmented redemptions can forfeit more than one base unit in total. A zero minimum explicitly permits a zero-output burn; clients should preview and set a suitable minimum. Merging matched pairs avoids redemption dust.
@@ -57,7 +67,8 @@ Illustration: 1,000 collateral units mint 1,000 of each claim. With bounds $2–
 | Settlement refusal cases | Tested locally; not live CRE authentication |
 | Kuru deployment preflight | Read-only existing-market checks |
 | Custom Kuru market, fill and withdrawal | Not demonstrated |
-| CRE receiver and workflow | Not implemented |
+| CRE receiver | Implemented and tested locally; no live authenticated delivery |
+| CRE data workflow | Pending |
 | Licensed production index | Not established |
 | Monad contract deployment and product UI | Not implemented |
 

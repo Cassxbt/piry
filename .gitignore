@@ -26,3 +26,5 @@
 !/contracts/ComputeMarket.sol
 !/test/ComputeMarket.t.sol
 !/test/AdversarialMarket.t.sol
+!/contracts/SettlementReceiver.sol
+!/test/SettlementReceiver.t.sol
