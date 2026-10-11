@@ -12,3 +12,12 @@
 !/tests/
 /tests/*
 !/tests/test_preflight.py
+!/package.json
+!/package-lock.json
+!/foundry.toml
+!/contracts/
+/contracts/*
+!/contracts/PayoutMath.sol
+!/test/
+/test/*
+!/test/PayoutMath.t.sol
