@@ -1,0 +1,14 @@
+# Only explicitly reviewed project files may be tracked.
+/*
+!/.gitignore
+!/README.md
+!/Makefile
+!/config/
+/config/*
+!/config/kuru-testnet.json
+!/scripts/
+/scripts/*
+!/scripts/preflight.py
+!/tests/
+/tests/*
+!/tests/test_preflight.py
