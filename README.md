@@ -8,7 +8,7 @@ This repository contains a read-only Kuru testnet deployment checker and a cappe
 
 ## Run
 
-Requires Python 3.10+, Node.js/npm, Make and Foundry. Install the pinned OpenZeppelin dependency with `npm ci --ignore-scripts`, then run `forge build` to obtain Solidity 0.8.30. No wallet or signing keys are needed for local tests.
+Requires Python 3.10+, Node.js/npm, Make and Foundry. Install the pinned OpenZeppelin dependency with `npm ci --ignore-scripts`, then run `forge build` to obtain Solidity 0.8.31. No wallet or signing keys are needed for local tests.
 
 ```sh
 make verify
@@ -20,6 +20,8 @@ make preflight
 The checker verifies deployed code, EIP1967 implementation pointers, existing-market registration, custody address, quote-token whitelist status and decimals. It separately checks the bounty faucet token and confirms the snapshot hash remains unchanged.
 
 Passing these checks establishes an existing-market baseline only. It does not prove custom-token admission, market creation permission, an executed trade, withdrawal capacity or sponsor eligibility. The manifest records its official documentation sources; the final product deployment version remains to be selected.
+
+The compiler targets Osaka following [Monad’s compiler guidance](https://docs.monad.xyz/tooling-and-infra/toolkits/hardhat). These are local EVM tests; they do not establish Monad-specific gas or execution parity.
 
 ## Development
 
