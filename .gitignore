@@ -21,3 +21,7 @@
 !/test/
 /test/*
 !/test/PayoutMath.t.sol
+!/LICENSE
+!/contracts/ClaimToken.sol
+!/contracts/ComputeMarket.sol
+!/test/ComputeMarket.t.sol
