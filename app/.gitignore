@@ -1,0 +1,5 @@
+node_modules
+dist
+.fixture-out
+.fixture-cache
+.playwright-mcp

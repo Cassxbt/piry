@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "entries": [
+    {
+      "txHash": "0x150878afa04d31f5df581dcd365042b29343830e4348da1df725d0256f01e151",
+      "note": "Sent before the period end to show the BeforeExpiry guard."
+    }
+  ]
+}

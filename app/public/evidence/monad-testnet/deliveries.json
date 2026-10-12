@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "entries": [
+    {
+      "txHash": "0x44b935ac592035426b2cf07ecacf53b5c824e731a9b32f3ac3126ae60d718338",
+      "note": "The accepted settlement report."
+    },
+    {
+      "txHash": "0x66ebd575d1441cadfcfe5a29d9f904c8005ab52081080c7405ca3a0e2f42435d",
+      "note": "A second report with different evidence, sent after the market had settled."
+    }
+  ],
+  "offchain": [
+    {
+      "title": "Settlement attempt on duplicate-slot source data",
+      "reason": "duplicate slot",
+      "note": "The CRE workflow validated the dataset before building a report, found a duplicated observation slot and stopped. No report was built and no transaction was sent, so there is nothing on-chain to inspect. The market simply stayed unsettled until the accepted report below."
+    }
+  ]
+}

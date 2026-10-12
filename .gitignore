@@ -84,6 +84,11 @@
 !/workflow/runtime-test/akash.test.ts
 !/deployments/series.akash-h100.example.json
 
+!/app/
+/app/screenshots/
+/app/node_modules/
+/app/dist/
+
 # Secrets: never tracked, even if an allowlist entry above would match.
 /.env*
 /workflow/.env*

@@ -1,0 +1,28 @@
+{
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "explorer": "https://testnet.monadexplorer.com",
+  "mode": "DEMO index (synthetic, loopback source); CRE CLI simulate --broadcast through Chainlink MockKeystoneForwarder; operator-gated receivers",
+  "contracts": {
+    "collateral_PiryTestUSD": "0xc6aFaF08b17C6Be52eF1927889D068Dc138974E8",
+    "settlementReceiver_simulation": "0x43259Ac2952ae1583BDF0DC4756Eb86ec963ee39",
+    "market": "0xb71f79e990629aD3d0aB8a3fd2A8F8a21FE0004a",
+    "markFeed": "0x110Daf63811F8F2b50aC01a8Ab85fb9B20ca9624",
+    "longClaim": "0xB883c87091388EAc45ed539820Dc2cc49325Dd18",
+    "shortClaim": "0x09D88859E054CA6547Fe12D4C868Ce3671729607",
+    "creMockForwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192"
+  },
+  "series": { "index": "NVIDIA H100 80GB DEMO, USD/GPU-hour, 6 decimals", "lower": "2.000000", "upper": "4.000000", "slotSeconds": 60, "periodStart": 1791798853, "periodEnd": 1791799153 },
+  "steps": [
+    { "step": "mintPairs 1000 (1000 PTUSD locked)", "tx": "0x8c1c5446bf088b10d0b0b7015ed8f04b2879873096255ff6be7b6bde79d6e85d", "ok": true },
+    { "step": "CRE mark, pre-period spot: index 2.743600 -> long 0.37180000", "tx": "0x818bb3d66767f4c47a160e068d934b405e1e6cf9c7b001a11ff1b80993e263a5", "ok": true },
+    { "step": "CRE mark, period-to-date mean (1 slot): index 2.465654 -> long 0.23282700", "round": 2, "ok": true },
+    { "step": "CRE settlement attempt on duplicate-slot source data", "result": "workflow refused before any chain write ('duplicate slot'); market.settled() stayed false", "ok": true },
+    { "step": "CRE settlement: price 2.658755, evidence 0xdcc0360271a9015678c35c2774f19deaf7f843a36b06c4a9dee46ade945bc4ff", "tx": "0x44b935ac592035426b2cf07ecacf53b5c824e731a9b32f3ac3126ae60d718338", "forwarderResult": true, "ok": true },
+    { "step": "CRE settlement replay (new evidence 0x3962...2346)", "tx": "0x66ebd575d1441cadfcfe5a29d9f904c8005ab52081080c7405ca3a0e2f42435d", "forwarderResult": false, "result": "receiver reverted (AlreadySettled); settlement unchanged", "ok": true },
+    { "step": "redeem 1000 long -> 329.377500 PTUSD", "tx": "0x829cf6434f441258da3799bfcdf6ecbe621178bdd3e1f9bc4685e38d8dbe9097", "ok": true },
+    { "step": "redeem 1000 short -> 670.622500 PTUSD", "tx": "0xe693ee80331f3689355fcd8db966af3e5e22404cca6e798069111bdc4e76b84f", "ok": true },
+    { "step": "post-settlement feed: final round 3, long value 0.32937750, updatedAt = block time", "ok": true },
+    { "step": "collateralLocked after full redemption", "value": "0", "ok": true }
+  ]
+}

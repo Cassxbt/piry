@@ -1,0 +1,40 @@
+:root {
+  color-scheme: light dark;
+
+  --font-display: "Newsreader Variable", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-ui: "Instrument Sans Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --paper: light-dark(#f2efe7, #0c0e0d);
+  --sheet: light-dark(#faf8f2, #131614);
+  --sunk: light-dark(#e8e4d8, #0a0c0b);
+  --ink: light-dark(#15140f, #ece9df);
+  --ink-2: light-dark(#47443a, #b6b2a5);
+  --ink-3: light-dark(#6a6659, #8d897d);
+  --rule: light-dark(#d6d1c1, #252a27);
+  --rule-strong: light-dark(#b4ae9a, #3b423e);
+
+  --long: light-dark(#0a6a5a, #5ccfb4);
+  --long-wash: light-dark(#d7e9e2, #10302a);
+  --short: light-dark(#a3401c, #f0916a);
+  --short-wash: light-dark(#f1dacd, #38211a);
+  --warn: light-dark(#7a5a08, #e3bf68);
+  --warn-wash: light-dark(#efe3bd, #33290f);
+  --focus: light-dark(#0a6a5a, #8fe3cf);
+  --hatch: light-dark(rgb(21 20 15 / 0.075), rgb(236 233 223 / 0.07));
+  --on-ink: light-dark(#f2efe7, #0c0e0d);
+
+  --radius: 3px;
+  --gutter: 16px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+@media (min-width: 720px) {
+  :root { --gutter: 32px; }
+}
+@media (min-width: 1100px) {
+  :root { --gutter: 56px; }
+}

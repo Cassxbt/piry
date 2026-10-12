@@ -1,0 +1,46 @@
+{
+  "network": "monad-testnet",
+  "chain": {
+    "id": 10143,
+    "name": "Monad Testnet",
+    "rpcUrl": "https://testnet-rpc.monad.xyz",
+    "explorerUrl": "https://testnet.monadexplorer.com",
+    "nativeSymbol": "MON",
+    "getLogsMaxRange": 100,
+    "scanMaxRequests": 60,
+    "requestsPerSecond": 10,
+    "multicall3": "0xcA11bde05977b3631167028862bE2a173976CA11"
+  },
+  "settlement": {
+    "source": "Chainlink CRE workflow"
+  },
+  "series": {
+    "name": "H100 fast demo",
+    "hardware": "NVIDIA H100 80GB",
+    "units": "USD per GPU-hour",
+    "dataMode": "DEMO",
+    "source": {
+      "name": "Akash on-chain H100 market price",
+      "summary": "Public chain data from the Akash marketplace, read by a Chainlink CRE workflow and reduced to USD per GPU-hour.",
+      "sanityBand": {
+        "name": "GetDeploying weekly H100 median",
+        "license": "CC BY 4.0",
+        "note": "A published cross-provider reference (41 providers), shown as a sanity check on the level. It is not used for settlement, and the two sources can differ by a quarter or more.",
+        "url": "https://getdeploying.com/dataset/gpu-prices/weekly.csv",
+        "value": "3.41",
+        "asOf": "2026-10-12"
+      },
+      "demo": "Synthetic prices from a loopback demo source, delivered by the CRE CLI in simulation. No market data is attached to this series."
+    }
+  },
+  "kuru": {
+    "accountCore": "0xdbaaDe7B42c95399bb1E9614D51B5B9e2cf78038",
+    "quoteToken": "0xA402B424f392EAA05DBc8779e4502A1F6A96fEF1",
+    "quoteSymbol": "USDC",
+    "quoteDecimals": 6,
+    "longMarket": null,
+    "shortMarket": null
+  },
+  "evidenceBase": "/evidence/monad-testnet",
+  "markStaleSeconds": 3600
+}
