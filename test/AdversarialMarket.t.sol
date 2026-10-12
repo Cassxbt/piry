@@ -368,7 +368,8 @@ contract AdversarialMarketTest {
             upper: 300,
             periodStart: 2_000,
             periodEnd: 3_000,
-            maxReportAge: 100
+            maxReportAge: 100,
+            fallbackDelay: 1_000
         });
     }
 

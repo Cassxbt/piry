@@ -52,3 +52,15 @@
 /workflow/runtime-test/*
 !/workflow/runtime-test/settlement.test.ts
 !/scripts/settlement-proof.ts
+!/contracts/SimulationSettlementReceiver.sol
+!/contracts/PiryMarkFeed.sol
+!/contracts/PiryTestUSD.sol
+!/test/SettlementFallback.t.sol
+!/test/SimulationSettlementReceiver.t.sol
+!/test/PiryMarkFeed.t.sol
+!/test/PiryTestUSD.t.sol
+!/test/VmExt.sol
+!/scripts/deploy.ts
+!/deployments/
+/deployments/*
+!/deployments/series.example.json

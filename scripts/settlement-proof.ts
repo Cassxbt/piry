@@ -73,7 +73,7 @@ try {
     indexId: identity.indexId, specHash: identity.specHash, priceDecimals: demoTerms.priceDecimals,
     lower: 1_000_000n, upper: 4_000_000n,
     periodStart: BigInt(demoTerms.periodStart), periodEnd: BigInt(demoTerms.periodEnd),
-    maxReportAge: BigInt(demoTerms.maxPublicationAgeSeconds),
+    maxReportAge: BigInt(demoTerms.maxPublicationAgeSeconds), fallbackDelay: 86_400n,
   }]);
   await write(usd, 'mint', [account, 3_000_000n]);
   await write(usd, 'approve', [market.address, 3_000_000n]);

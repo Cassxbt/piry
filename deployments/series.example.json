@@ -1,0 +1,35 @@
+{
+  "_doc": {
+    "about": "Series definition read by scripts/deploy.ts. Keys starting with an underscore are ignored. Copy this file, edit it, and pass it with --series. This example is a DEMO series on synthetic data.",
+    "collateral": "Either the string \"deploy-test-usd\" (deploys the 6-decimal PiryTestUSD token, mintable only by the deployer) or the address of an existing ERC-20 with at most 18 decimals.",
+    "priceDecimals": "Decimals of the index price (0-18). Bounds and reports use this scale. It must equal the workflow's index priceDecimals.",
+    "bounds": "lower and upper payout bounds in index price units, decimal strings, lower < upper. A long claim pays 0 at or below lower and the full collateral at or above upper.",
+    "periodStart": "When the measured period starts. Either an absolute unix timestamp (number) or \"+N\" meaning N seconds after the latest block of the target chain at deploy time. Must be at least 60 seconds ahead.",
+    "periodEnd": "When the period ends and settlement becomes possible. Same format as periodStart, and later than it.",
+    "maxReportAge": "Seconds a settlement report stays valid after its publishedAt. Keep it equal to the workflow's maxPublicationAgeSeconds.",
+    "fallbackDelay": "Seconds after periodEnd at which anyone may settle the market at the midpoint of its bounds if the oracle never delivered. 604800 is 7 days.",
+    "index": "Either { indexId, specHash } as 32-byte hex, or { terms } where terms is a workflow IndexTerms object. With terms the script derives both with workflow/validation.ts indexIdentity. priceDecimals, periodStart, periodEnd and maxPublicationAgeSeconds are filled in from this file and must be omitted from terms or equal to the resolved values.",
+    "receiver": "{ mode: \"simulation\" } trusts the deployer EOA (tx.origin) behind the Chainlink mock forwarder: DEMO ONLY. { mode: \"strict\", workflowId, markWorkflowId } pins the CRE workflow IDs of the settlement receiver and of the mark feed.",
+    "forwarder": "Chainlink forwarder address. Monad testnet MockKeystoneForwarder is 0xB9F79d863261869B234c481D1f9A7af84AeAd192. On the local network that address does not exist, so a mock forwarder fixture with no signature checks is deployed and used instead."
+  },
+  "collateral": "deploy-test-usd",
+  "priceDecimals": 6,
+  "bounds": { "lower": "1000000", "upper": "4000000" },
+  "periodStart": "+600",
+  "periodEnd": "+3000",
+  "maxReportAge": 600,
+  "fallbackDelay": 604800,
+  "index": {
+    "terms": {
+      "mode": "DEMO",
+      "sourceId": "piry-demo",
+      "datasetId": "a100-demo-v1",
+      "hardware": { "model": "NVIDIA A100", "memoryGiB": 80, "gpuCount": 1, "region": "demo-region" },
+      "currency": "USD",
+      "units": "USD/GPU-hour",
+      "slotSeconds": 300
+    }
+  },
+  "receiver": { "mode": "simulation" },
+  "forwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192"
+}

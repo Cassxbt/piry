@@ -44,7 +44,8 @@ contract SettlementReceiverTest {
                 upper: 300,
                 periodStart: 2_000,
                 periodEnd: 3_000,
-                maxReportAge: 100
+                maxReportAge: 100,
+                fallbackDelay: 1_000
             })
         );
     }
@@ -150,7 +151,8 @@ contract SettlementReceiverTest {
                 upper: 300,
                 periodStart: 2_000,
                 periodEnd: 3_000,
-                maxReportAge: 100
+                maxReportAge: 100,
+                fallbackDelay: 1_000
             })
         );
         vm.warp(3_000);
@@ -228,7 +230,8 @@ contract SettlementReceiverTest {
                 upper: 300,
                 periodStart: 2_000,
                 periodEnd: 3_000,
-                maxReportAge: 100
+                maxReportAge: 100,
+                fallbackDelay: 1_000
             })
         );
         vm.warp(3_000);

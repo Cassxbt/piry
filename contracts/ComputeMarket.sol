@@ -22,6 +22,7 @@ contract ComputeMarket is ReentrancyGuard {
         uint64 periodStart;
         uint64 periodEnd;
         uint64 maxReportAge;
+        uint64 fallbackDelay;
     }
 
     struct Report {
@@ -48,10 +49,12 @@ contract ComputeMarket is ReentrancyGuard {
     error ZeroAmount();
     error MinimumPayoutNotMet();
     error UnsupportedCollateral();
+    error FallbackNotReady();
 
     event PairsMinted(address indexed account, uint256 quantity);
     event PairsMerged(address indexed account, address indexed recipient, uint256 quantity);
     event Settled(uint256 price, uint64 publishedAt, bytes32 indexed evidenceHash);
+    event SettledByFallback(uint256 price);
     event Redeemed(
         address indexed account, address indexed recipient, uint256 longAmount, uint256 shortAmount, uint256 payout
     );
@@ -66,6 +69,8 @@ contract ComputeMarket is ReentrancyGuard {
     uint64 public immutable periodStart;
     uint64 public immutable periodEnd;
     uint64 public immutable maxReportAge;
+    uint64 public immutable fallbackDelay;
+    bytes32 public constant FALLBACK_EVIDENCE_HASH = keccak256("PIRY_FALLBACK_MIDPOINT_V1");
     ClaimToken public immutable longClaim;
     ClaimToken public immutable shortClaim;
 
@@ -74,6 +79,7 @@ contract ComputeMarket is ReentrancyGuard {
     uint256 public settlementPrice;
     uint64 public reportPublishedAt;
     bytes32 public settlementEvidenceHash;
+    bool public settledByFallback;
 
     constructor(Config memory config) {
         if (
@@ -82,6 +88,7 @@ contract ComputeMarket is ReentrancyGuard {
                 || config.lower >= config.upper || config.periodStart < block.timestamp
                 || config.periodEnd <= config.periodStart || config.maxReportAge == 0
         ) revert InvalidConfig();
+        if (config.fallbackDelay == 0) revert InvalidConfig();
         uint8 decimals_ = IERC20Metadata(config.collateral).decimals();
         if (decimals_ > 18) revert InvalidConfig();
         collateral = IERC20(config.collateral);
@@ -94,6 +101,7 @@ contract ComputeMarket is ReentrancyGuard {
         periodStart = config.periodStart;
         periodEnd = config.periodEnd;
         maxReportAge = config.maxReportAge;
+        fallbackDelay = config.fallbackDelay;
         longClaim = new ClaimToken("Piry Long Claim", "PIRY-L", decimals_);
         shortClaim = new ClaimToken("Piry Short Claim", "PIRY-S", decimals_);
     }
@@ -141,6 +149,20 @@ contract ComputeMarket is ReentrancyGuard {
         reportPublishedAt = report.publishedAt;
         settlementEvidenceHash = report.evidenceHash;
         emit Settled(report.price, report.publishedAt, report.evidenceHash);
+    }
+
+    /// @notice Permissionless escape hatch for an oracle that never delivers a fresh report: after
+    /// `fallbackDelay` past the period end the market settles at the midpoint of its bounds.
+    function settleFallback() external nonReentrant {
+        if (settled) revert AlreadySettled();
+        if (block.timestamp < uint256(periodEnd) + fallbackDelay) revert FallbackNotReady();
+        uint256 price = lower + (upper - lower) / 2;
+        settled = true;
+        settledByFallback = true;
+        settlementPrice = price;
+        reportPublishedAt = uint64(block.timestamp);
+        settlementEvidenceHash = FALLBACK_EVIDENCE_HASH;
+        emit SettledByFallback(price);
     }
 
     function previewRedeem(uint256 longAmount, uint256 shortAmount) public view returns (uint256) {
