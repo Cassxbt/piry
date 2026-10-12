@@ -93,6 +93,8 @@
 !/workflow/test/verda-instance-types.live.json
 !/workflow/runtime-test/composite.test.ts
 !/deployments/series.composite-h100.example.json
+!/contracts/PiryShortFeed.sol
+!/test/PiryShortFeed.t.sol
 !/app/
 /app/screenshots/
 /app/node_modules/
