@@ -1,0 +1,37 @@
+{
+  "executionMode": "simulation",
+  "sourceUrl": "piry:composite-h100-sxm-median-v1",
+  "schedule": "0 */5 * * * *",
+  "chainName": "monad-testnet",
+  "chainId": "10143",
+  "receiver": "REPLACE_WITH_SIMULATION_SETTLEMENT_RECEIVER_ADDRESS",
+  "market": "REPLACE_WITH_MARKET_ADDRESS",
+  "gasLimit": "500000",
+  "mark": {
+    "feed": "REPLACE_WITH_MARK_FEED_ADDRESS",
+    "sourceUrl": "piry:composite-h100-sxm-median-v1",
+    "schedule": "0 */15 * * * *",
+    "gasLimit": "400000",
+    "observedAtMarginSeconds": 15
+  },
+  "terms": {
+    "mode": "COMPOSITE",
+    "sourceId": "composite-h100-sxm-median",
+    "sources": {
+      "akash": {
+        "selector": { "vendor": "nvidia", "model": "h100", "ram": "80Gi", "interface": "SXM5" },
+        "priceField": "weightedAverage",
+        "minProviders": 2
+      },
+      "runpod": { "gpuTypeId": "NVIDIA H100 80GB HBM3", "gpuCount": 1 },
+      "shadeform": { "gpuType": "H100", "numGpus": 1, "interconnect": "sxm5", "excludeClouds": ["verda"], "minClouds": 4 },
+      "verda": { "gpuDescription": "1x H100 SXM5 80GB", "numberOfGpus": 1 }
+    },
+    "minSources": 3,
+    "sanityBounds": { "min": "0.50", "max": "20.00" },
+    "priceDecimals": 6,
+    "periodStart": "REPLACE_WITH_MARKET_PERIOD_START_UNIX_SECONDS",
+    "periodEnd": "REPLACE_WITH_MARKET_PERIOD_END_UNIX_SECONDS",
+    "maxPublicationAgeSeconds": 3600
+  }
+}

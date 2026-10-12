@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { isAddress, zeroAddress } from "viem";
 import { AKASH_SOURCE_URL } from "./akash.js";
-import { AKASH_PRICE_FIELDS, AKASH_SOURCE_ID, validateTerms } from "./validation.js";
+import { COMPOSITE_SOURCE_LABEL } from "./composite.js";
+import { AKASH_PRICE_FIELDS, AKASH_SOURCE_ID, COMPOSITE_SOURCE_ID, validateTerms } from "./validation.js";
 
 const address = z.string().refine(value => isAddress(value) && value.toLowerCase() !== zeroAddress, "nonzero EVM address required");
 const integer = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -32,11 +33,31 @@ export const configSchema = z.object({
       sanityBounds: z.object({ min: z.string(), max: z.string() }).strict(),
       priceDecimals: integer, periodStart: integer, periodEnd: integer, maxPublicationAgeSeconds: integer,
     }).strict(),
+    z.object({
+      mode: z.literal("COMPOSITE"), sourceId: z.literal(COMPOSITE_SOURCE_ID),
+      sources: z.object({
+        akash: z.object({
+          selector: z.object({ vendor: z.string(), model: z.string(), ram: z.string(), interface: z.string() }).strict(),
+          priceField: z.enum(AKASH_PRICE_FIELDS), minProviders: integer,
+        }).strict(),
+        runpod: z.object({ gpuTypeId: z.string(), gpuCount: integer }).strict(),
+        shadeform: z.object({
+          gpuType: z.string(), numGpus: integer, interconnect: z.string(), excludeClouds: z.array(z.string()), minClouds: integer,
+        }).strict(),
+        verda: z.object({ gpuDescription: z.string(), numberOfGpus: integer }).strict(),
+      }).strict(),
+      minSources: integer, sanityBounds: z.object({ min: z.string(), max: z.string() }).strict(),
+      priceDecimals: integer, periodStart: integer, periodEnd: integer, maxPublicationAgeSeconds: integer,
+    }).strict(),
   ]),
 }).strict().superRefine((config, context) => {
   for (const url of [config.sourceUrl, ...(config.mark ? [config.mark.sourceUrl] : [])]) {
     if (config.terms.mode === "AKASH") {
       if (url !== AKASH_SOURCE_URL) context.addIssue({ code: "custom", message: `AKASH source must be exactly ${AKASH_SOURCE_URL}` });
+      continue;
+    }
+    if (config.terms.mode === "COMPOSITE") {
+      if (url !== COMPOSITE_SOURCE_LABEL) context.addIssue({ code: "custom", message: `COMPOSITE source must be exactly ${COMPOSITE_SOURCE_LABEL}` });
       continue;
     }
     const localHttp = /^http:\/\/(127\.0\.0\.1|localhost)(:[0-9]{1,5})?\//.test(url);

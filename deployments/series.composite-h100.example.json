@@ -1,0 +1,66 @@
+{
+  "_doc": {
+    "about": "Live H100 series on a composite index: the median of Akash, RunPod, Verda and Shadeform H100 SXM prices, each read by its own CRE HTTP call with consensus. Copy this file, replace the collateral placeholder, set the period, and pass it with --series. Settlement is a snapshot taken by CRE at or just after periodEnd.",
+    "collateral": "REPLACE_WITH_KURU_TESTNET_USDC_ADDRESS is a placeholder that scripts/deploy.ts refuses. Set it to the ERC-20 address of the Kuru testnet USDC (at most 18 decimals).",
+    "bounds": "2.00 and 4.00 USD per GPU-hour in 6-decimal index units. A long claim pays 0 at or below 2.00 and the full collateral at or above 4.00.",
+    "periodStart": "Either an absolute unix timestamp or \"+N\" seconds after the latest block. Use absolute timestamps for the real series so periodEnd falls inside the judging window.",
+    "maxReportAge": "Must equal the workflow's maxPublicationAgeSeconds (3600 in workflow/config.composite.example.json).",
+    "index": "COMPOSITE terms. priceDecimals, periodStart, periodEnd and maxPublicationAgeSeconds are filled in from this file. Everything else (the four source rules, minSources, sanityBounds) is part of the spec hash and must equal the terms in workflow/config.composite.json; the market refuses a report whose hash differs.",
+    "receiver": "simulation mode trusts the deployer EOA behind the Chainlink mock forwarder: use it only with cre workflow simulate --broadcast.",
+    "forwarder": "Monad testnet MockKeystoneForwarder."
+  },
+  "collateral": "REPLACE_WITH_KURU_TESTNET_USDC_ADDRESS",
+  "priceDecimals": 6,
+  "bounds": {
+    "lower": "2000000",
+    "upper": "4000000"
+  },
+  "periodStart": "+600",
+  "periodEnd": "+172800",
+  "maxReportAge": 3600,
+  "fallbackDelay": 604800,
+  "index": {
+    "terms": {
+      "mode": "COMPOSITE",
+      "sourceId": "composite-h100-sxm-median",
+      "sources": {
+        "akash": {
+          "selector": {
+            "vendor": "nvidia",
+            "model": "h100",
+            "ram": "80Gi",
+            "interface": "SXM5"
+          },
+          "priceField": "weightedAverage",
+          "minProviders": 2
+        },
+        "runpod": {
+          "gpuTypeId": "NVIDIA H100 80GB HBM3",
+          "gpuCount": 1
+        },
+        "shadeform": {
+          "gpuType": "H100",
+          "numGpus": 1,
+          "interconnect": "sxm5",
+          "excludeClouds": [
+            "verda"
+          ],
+          "minClouds": 4
+        },
+        "verda": {
+          "gpuDescription": "1x H100 SXM5 80GB",
+          "numberOfGpus": 1
+        }
+      },
+      "minSources": 3,
+      "sanityBounds": {
+        "min": "0.50",
+        "max": "20.00"
+      }
+    }
+  },
+  "receiver": {
+    "mode": "simulation"
+  },
+  "forwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192"
+}

@@ -21,3 +21,11 @@ akash-settings:
     workflow-path: "./main.ts"
     config-path: "./config.akash.json"
     secrets-path: ""
+
+composite-settings:
+  user-workflow:
+    workflow-name: "piry-composite-index"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.composite.json"
+    secrets-path: ""

@@ -12,3 +12,8 @@ akash-settings:
   rpcs:
     - chain-name: monad-testnet
       url: https://testnet-rpc.monad.xyz
+
+composite-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: https://testnet-rpc.monad.xyz

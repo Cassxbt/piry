@@ -84,6 +84,15 @@
 !/workflow/runtime-test/akash.test.ts
 !/deployments/series.akash-h100.example.json
 
+!/workflow/composite.ts
+!/workflow/config.composite.example.json
+!/workflow/test/composite.test.ts
+!/workflow/test/composite-fixtures.ts
+!/workflow/test/runpod-gpu-types.live.json
+!/workflow/test/shadeform-instance-types.live.json
+!/workflow/test/verda-instance-types.live.json
+!/workflow/runtime-test/composite.test.ts
+!/deployments/series.composite-h100.example.json
 !/app/
 /app/screenshots/
 /app/node_modules/

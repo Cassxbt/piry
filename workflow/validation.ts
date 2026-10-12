@@ -9,6 +9,17 @@ export const MAX_RESPONSE_BYTES = 65536;
 export const AKASH_SOURCE_ID = "akash-console-gpu-prices";
 export const AKASH_METHODOLOGY = "akash-console-snapshot-v1";
 export const AKASH_PRICE_FIELDS = ["weightedAverage", "med"] as const;
+export const COMPOSITE_SOURCE_ID = "composite-h100-sxm-median";
+export const COMPOSITE_METHODOLOGY = "composite-median-v1";
+export const COMPOSITE_SOURCES = ["akash", "runpod", "shadeform", "verda"] as const;
+export const AKASH_SOURCE_URL = "https://console-api.akash.network/v1/gpu-prices";
+// Bound into the composite spec hash, so pointing a source anywhere else is a different index.
+export const COMPOSITE_ENDPOINTS = {
+  akash: AKASH_SOURCE_URL,
+  runpod: "https://api.runpod.io/graphql",
+  shadeform: "https://api.shadeform.ai/v1/instances/types",
+  verda: "https://api.verda.com/v1/instance-types",
+} as const;
 
 export type Hardware = { model: string; memoryGiB: number; gpuCount: number; region: string };
 export type IndexTerms = {
@@ -25,19 +36,39 @@ export type IndexTerms = {
   maxPublicationAgeSeconds: number;
 };
 export type AkashSelector = { vendor: string; model: string; ram: string; interface: string };
-export type AkashTerms = {
-  mode: "AKASH";
-  sourceId: typeof AKASH_SOURCE_ID;
+export type AkashRule = {
   selector: AkashSelector;
   priceField: (typeof AKASH_PRICE_FIELDS)[number];
   minProviders: number;
+};
+export type AkashTerms = AkashRule & {
+  mode: "AKASH";
+  sourceId: typeof AKASH_SOURCE_ID;
   sanityBounds: { min: string; max: string };
   priceDecimals: number;
   periodStart: number;
   periodEnd: number;
   maxPublicationAgeSeconds: number;
 };
-export type AnyTerms = IndexTerms | AkashTerms;
+export type CompositeRules = {
+  akash: AkashRule;
+  runpod: { gpuTypeId: string; gpuCount: number };
+  shadeform: { gpuType: string; numGpus: number; interconnect: string; excludeClouds: string[]; minClouds: number };
+  verda: { gpuDescription: string; numberOfGpus: number };
+};
+export type CompositeTerms = {
+  mode: "COMPOSITE";
+  sourceId: typeof COMPOSITE_SOURCE_ID;
+  sources: CompositeRules;
+  minSources: number;
+  sanityBounds: { min: string; max: string };
+  priceDecimals: number;
+  periodStart: number;
+  periodEnd: number;
+  maxPublicationAgeSeconds: number;
+};
+export type SnapshotTerms = AkashTerms | CompositeTerms;
+export type AnyTerms = IndexTerms | SnapshotTerms;
 export type ValidatedIndex = {
   price: bigint;
   publishedAt: number;
@@ -97,7 +128,7 @@ export function decimalUnits(text: string, decimals: number, exact: boolean): bi
   return digits / divisor;
 }
 
-export function sanityUnits({ sanityBounds, priceDecimals }: AkashTerms): { min: bigint; max: bigint } {
+export function sanityUnits({ sanityBounds, priceDecimals }: SnapshotTerms): { min: bigint; max: bigint } {
   const bound = (value: unknown, name: string) => {
     requireValue(typeof value === "string" && /^(0|[1-9][0-9]{0,11})(\.[0-9]+)?$/.test(value), `sanity ${name} must be a plain decimal string`);
     return decimalUnits(value, priceDecimals, true);
@@ -114,11 +145,13 @@ function akashSelector(value: unknown): AkashSelector {
   };
 }
 
-function validateAkashTerms(terms: AkashTerms): void {
-  requireValue(terms.sourceId === AKASH_SOURCE_ID, "unsupported index binding");
-  akashSelector(terms.selector);
-  requireValue((AKASH_PRICE_FIELDS as readonly unknown[]).includes(terms.priceField), "unsupported price field");
-  integer(terms.minProviders, "minProviders", 1, 1000);
+function validateAkashRule(rule: AkashRule): void {
+  akashSelector(rule.selector);
+  requireValue((AKASH_PRICE_FIELDS as readonly unknown[]).includes(rule.priceField), "unsupported price field");
+  integer(rule.minProviders, "minProviders", 1, 1000);
+}
+
+function validateSnapshotWindow(terms: SnapshotTerms): void {
   integer(terms.priceDecimals, "priceDecimals", 0, 18);
   integer(terms.periodStart, "periodStart");
   integer(terms.periodEnd, "periodEnd");
@@ -128,8 +161,40 @@ function validateAkashTerms(terms: AkashTerms): void {
   requireValue(min > 0n && min < max, "sanity bounds must satisfy 0 < min < max");
 }
 
+function validateAkashTerms(terms: AkashTerms): void {
+  requireValue(terms.sourceId === AKASH_SOURCE_ID, "unsupported index binding");
+  validateAkashRule(terms);
+  validateSnapshotWindow(terms);
+}
+
+const CLOUD = /^[a-z0-9][a-z0-9_-]{0,31}$/;
+
+function validateCompositeTerms(terms: CompositeTerms): void {
+  requireValue(terms.sourceId === COMPOSITE_SOURCE_ID, "unsupported index binding");
+  const sources = record(terms.sources, [...COMPOSITE_SOURCES]);
+  validateAkashRule(record(sources.akash, ["selector", "priceField", "minProviders"]) as AkashRule);
+  const runpod = record(sources.runpod, ["gpuTypeId", "gpuCount"]);
+  label(runpod.gpuTypeId, "gpuTypeId");
+  integer(runpod.gpuCount, "gpuCount", 1, 8);
+  const shadeform = record(sources.shadeform, ["gpuType", "numGpus", "interconnect", "excludeClouds", "minClouds"]);
+  label(shadeform.gpuType, "gpuType");
+  integer(shadeform.numGpus, "numGpus", 1, 8);
+  label(shadeform.interconnect, "interconnect");
+  integer(shadeform.minClouds, "minClouds", 1, 32);
+  const excluded = shadeform.excludeClouds;
+  requireValue(Array.isArray(excluded) && excluded.length <= 8
+    && excluded.every((cloud, index) => typeof cloud === "string" && CLOUD.test(cloud) && (index === 0 || excluded[index - 1] < cloud)),
+  "excludeClouds must be sorted, unique cloud names");
+  const verda = record(sources.verda, ["gpuDescription", "numberOfGpus"]);
+  label(verda.gpuDescription, "gpuDescription");
+  integer(verda.numberOfGpus, "numberOfGpus", 1, 8);
+  integer(terms.minSources, "minSources", 3, COMPOSITE_SOURCES.length);
+  validateSnapshotWindow(terms);
+}
+
 export function validateTerms(terms: AnyTerms): void {
   if (terms.mode === "AKASH") return validateAkashTerms(terms);
+  if (terms.mode === "COMPOSITE") return validateCompositeTerms(terms);
   requireValue(terms.mode === "DEMO" && terms.currency === "USD" && terms.units === "USD/GPU-hour", "unsupported index binding");
   label(terms.sourceId, "sourceId");
   label(terms.datasetId, "datasetId");
@@ -166,9 +231,36 @@ function akashIdentity(terms: AkashTerms): { indexId: Hex; specHash: Hex } {
   };
 }
 
+function compositeIdentity(terms: CompositeTerms): { indexId: Hex; specHash: Hex } {
+  const { akash, runpod, shadeform, verda } = terms.sources;
+  const { vendor, model, ram, interface: connector } = akash.selector;
+  const { min, max } = sanityUnits(terms);
+  return {
+    indexId: keccak256(toBytes(JSON.stringify(["piry-index-v1", terms.mode, terms.sourceId, ...COMPOSITE_SOURCES]))),
+    specHash: keccak256(toBytes(JSON.stringify({
+      schemaVersion: 1, mode: terms.mode, sourceId: terms.sourceId,
+      sources: {
+        akash: {
+          selector: { vendor, model, ram, interface: connector }, priceField: akash.priceField, minProviders: akash.minProviders,
+        },
+        runpod: { gpuTypeId: runpod.gpuTypeId, gpuCount: runpod.gpuCount },
+        shadeform: {
+          gpuType: shadeform.gpuType, numGpus: shadeform.numGpus, interconnect: shadeform.interconnect,
+          excludeClouds: shadeform.excludeClouds, minClouds: shadeform.minClouds,
+        },
+        verda: { gpuDescription: verda.gpuDescription, numberOfGpus: verda.numberOfGpus },
+      },
+      endpoints: COMPOSITE_ENDPOINTS,
+      minSources: terms.minSources, sanityBounds: { min: min.toString(), max: max.toString() },
+      priceDecimals: terms.priceDecimals, methodology: COMPOSITE_METHODOLOGY,
+    }))),
+  };
+}
+
 export function indexIdentity(terms: AnyTerms): { indexId: Hex; specHash: Hex } {
   validateTerms(terms);
   if (terms.mode === "AKASH") return akashIdentity(terms);
+  if (terms.mode === "COMPOSITE") return compositeIdentity(terms);
   return {
     indexId: keccak256(toBytes(JSON.stringify(["piry-index-v1", terms.mode, terms.sourceId, terms.datasetId]))),
     specHash: keccak256(toBytes(JSON.stringify(specification(terms)))),
