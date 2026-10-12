@@ -6,7 +6,7 @@ The local contract prototype turns collateral into paired long and short ERC-20 
 
 ## Run locally
 
-Requires Python 3.10+, Node.js/npm, Make and Foundry with Solidity 0.8.31/Osaka support. Verified locally with Foundry 1.5.1. OpenZeppelin Contracts is pinned to 5.4.0.
+Requires Python 3.10+, Node.js 22/npm, Bun, Make and Foundry with Solidity 0.8.31/Osaka support. Verified with Bun 1.3.10 and Foundry 1.5.1. CRE CLI 1.33.0 is additionally required for the workflow build command. Dependencies are pinned in the npm lockfile.
 
 ```sh
 npm ci --ignore-scripts
@@ -14,9 +14,9 @@ forge build
 make verify
 ```
 
-`forge build` obtains the pinned compiler on the first run. `make verify` runs Python tests and Solidity unit/fuzz tests offline; no wallet, credentials or funds are needed.
+`forge build` obtains the pinned compiler on the first run. `make verify` runs Python, Solidity, data-validation and mocked CRE SDK tests offline; no wallet, credentials or funds are needed.
 
-Current verification: **66 Solidity tests and 9 Python tests pass**, including six fuzz properties run with 512 cases each. Attack tests cover reentrant collateral callbacks, false-return transfers, sender surcharges and rollback of balances and claim burns.
+Current verification: **66 Solidity, 9 Python and 63 workflow tests pass**, including six fuzz properties run with 512 cases each. Attack tests cover reentrant collateral callbacks, false-return transfers, sender surcharges and rollback of balances and claim burns.
 
 The compiler targets Osaka following [Monad’s compiler guidance](https://docs.monad.xyz/tooling-and-infra/toolkits/hardhat). Local EVM tests do not establish Monad-specific gas or execution parity. [Monad’s Foundry guide](https://docs.monad.xyz/tooling-and-infra/toolkits/foundry) specifies Foundry 1.8+ and `network = "monad"` for that separate verification step.
 
@@ -50,7 +50,7 @@ The receiver implements ERC165 and `onReport(bytes,bytes)`. It checks the caller
 ## Trust and limitations
 
 - **Settlement authority:** configure the market with `SettlementReceiver` as its immutable authority. The receiver trusts one immutable forwarder and exact nonzero workflow ID. Its tests use a local transport fixture without DON signatures. No live CRE delivery is established.
-- **Data validity:** publication-time checks, period binding and an evidence hash do not prove price accuracy, complete observations or source freshness. The future workflow must verify these against the committed index specification. `publishedAt` means report publication time, not source observation time.
+- **Data validity:** the workflow checks declared source identity, units, hardware, complete slot coverage and observation/publication timestamps. These checks cannot establish that a source tells the truth. The demonstration has one synthetic source, with no supplier signature or licensed production feed. The workflow passes the dataset publication time into the report; observation timestamps remain in the hashed evidence.
 - **Oracle liveness:** there is no timeout price, cancellation payout or administrative override. Without settlement, unmatched claims remain locked. Matched pairs can still be merged.
 - **Rounding:** each leg rounds down independently. Small fragmented redemptions can forfeit more than one base unit in total. A zero minimum explicitly permits a zero-output burn; clients should preview and set a suitable minimum. Merging matched pairs avoids redemption dust.
 - **Collateral:** only vetted, exact-transfer, non-rebasing ERC-20 assets are supported. Balance-delta checks reject fee-bearing receipts/payments but cannot prove that a token will never rebase, pause, blacklist users or change behavior.
@@ -68,9 +68,36 @@ The receiver implements ERC165 and `onReport(bytes,bytes)`. It checks the caller
 | Kuru deployment preflight | Read-only existing-market checks |
 | Custom Kuru market, fill and withdrawal | Not demonstrated |
 | CRE receiver | Implemented and tested locally; no live authenticated delivery |
-| CRE data workflow | Pending |
+| CRE data workflow | Compiles to WASM; validator, SDK handler and local-chain proof pass |
+| CRE CLI simulation / tenant network verification | Blocked by existing CLI credential refresh returning HTTP 403 |
 | Licensed production index | Not established |
 | Monad contract deployment and product UI | Not implemented |
+
+## Data-validation workflow
+
+The cron handler fetches a JSON dataset through CRE's HTTP capability. Each node validates it before identical-result consensus; only canonical validated evidence proceeds to `runtime.report` and `EVMClient.writeReport`. Authenticated mode requires an explicit successful receiver status. Missing status in simulation is reported as unverified.
+
+The demonstration index is deliberately narrow: one declared hardware/region/source combination, USD per GPU-hour, integer prices at a committed decimal scale, and an equal-weight mean across 1–168 complete time slots, rounded down. Missing, duplicate, extra, off-grid or out-of-period observations are rejected. Floating-point prices, changed units/hardware, unsafe integers, stale/future publication, failed HTTP responses and oversized responses are rejected before a chain write.
+
+`workflow/demo.ts` contains synthetic A100 observations of $2, $3 and $2. Their mean is $2.333333 at six decimals. The evidence hash commits to the canonical observations and specification. Freshness policy is bound by workflow configuration and the market's `maxReportAge`; it is not part of the reusable index specification hash. Keep those policies consistent when deploying a series.
+
+```sh
+make workflow-build
+make settlement-proof
+```
+
+The first command compiles the actual CRE entrypoint to ignored `workflow/binary.wasm`. The second starts a temporary loopback-only Anvil node and proves validated data → ABI report → receiver → settlement event/state → redemption. It also checks duplicate data, a wrong-chain report, misleading outer-call success and replay. Its output explicitly states **synthetic data, local chain, mock transport, no DON signature proof**. Test accounts hold no public-network funds.
+
+For CRE CLI simulation, copy `workflow/config.example.json` to ignored `workflow/config.demo.json`, replace both address placeholders, and configure the actual source endpoint and series terms. The example deliberately fails validation until addresses are supplied. Its static historical period is for fixture replay; it is not fresh live input. For a new series, configure its future period before market deployment, collect every observation during that period, and publish after it ends. Do not reset timestamps on old observations to bypass freshness checks.
+
+After resolving CRE authentication, from `workflow/`:
+
+```sh
+cre workflow supported-chains --non-interactive
+cre workflow simulate . -R . -T demo-settings --non-interactive --trigger-index 0
+```
+
+No broadcast flag is included. CLI simulation has not run: the tenant-network check returned HTTP 403 during credential refresh. Strict production receiver authentication remains enabled and is incompatible with the documented metadata-less simulation forwarder. Official signed-forwarder compatibility and authenticated Monad delivery are separate outstanding integration checks. No public deployment or sponsor eligibility is claimed.
 
 ## Read-only Kuru preflight
 
@@ -88,4 +115,4 @@ A passing baseline does not prove custom-token admission, market creation permis
 
 Changes are committed as reviewed, coherent milestones. Research, planning, local instructions, credentials and generated evidence are excluded through an explicit file allowlist. New source files must be deliberately added before staging. AI tools assist implementation and testing under human review.
 
-License: MIT. OpenZeppelin dependencies retain their own MIT license.
+Piry source license: MIT. Dependencies retain their own licenses, including OpenZeppelin (MIT) and CRE SDK 1.23.0 (BUSL-1.1); the project license does not relicense dependencies.

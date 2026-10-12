@@ -1,0 +1,23 @@
+{
+  "executionMode": "simulation",
+  "sourceUrl": "http://127.0.0.1:8787/dataset.json",
+  "schedule": "0 */5 * * * *",
+  "chainName": "monad-testnet",
+  "chainId": "10143",
+  "receiver": "REPLACE_WITH_RECEIVER_ADDRESS",
+  "market": "REPLACE_WITH_MARKET_ADDRESS",
+  "gasLimit": "500000",
+  "terms": {
+    "mode": "DEMO",
+    "sourceId": "piry-demo",
+    "datasetId": "a100-demo-v1",
+    "hardware": { "model": "NVIDIA A100", "memoryGiB": 80, "gpuCount": 1, "region": "demo-region" },
+    "currency": "USD",
+    "units": "USD/GPU-hour",
+    "priceDecimals": 6,
+    "slotSeconds": 3600,
+    "periodStart": 1791676800,
+    "periodEnd": 1791687600,
+    "maxPublicationAgeSeconds": 600
+  }
+}

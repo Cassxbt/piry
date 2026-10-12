@@ -4,6 +4,19 @@
   "private": true,
   "description": "Capped compute-price claims on Monad",
   "devDependencies": {
-    "@openzeppelin/contracts": "5.4.0"
+    "@openzeppelin/contracts": "5.4.0",
+    "@types/node": "22.20.5",
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "@chainlink/cre-sdk": "1.23.0",
+    "viem": "2.57.4",
+    "zod": "3.25.76"
+  },
+  "scripts": {
+    "test:workflow": "tsc -p workflow/tsconfig.node.json && node --test workflow/.build/test/*.test.js && bun test workflow/runtime-test/settlement.test.ts",
+    "check:workflow": "tsc -p workflow/tsconfig.json && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --strict scripts/settlement-proof.ts && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --skipLibCheck --strict workflow/runtime-test/settlement.test.ts",
+    "build:workflow": "cd workflow && cre workflow build . -R . -T demo-settings --non-interactive -o binary.wasm",
+    "proof:settlement": "bun scripts/settlement-proof.ts"
   }
 }

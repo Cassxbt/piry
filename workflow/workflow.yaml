@@ -1,0 +1,7 @@
+demo-settings:
+  user-workflow:
+    workflow-name: "piry-demo-index"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.demo.json"
+    secrets-path: ""
