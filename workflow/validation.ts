@@ -1,6 +1,7 @@
 import { keccak256, toBytes, type Hex } from "viem";
 
 export const METHODOLOGY = "equal-slot-mean-floor-v1";
+export const SPOT_METHODOLOGY = "pre-period-spot-v1";
 export const MAX_SLOTS = 168;
 export const UINT256_MAX = (1n << 256n) - 1n;
 export const MAX_PRICE = UINT256_MAX / BigInt(MAX_SLOTS);
@@ -26,6 +27,8 @@ export type ValidatedIndex = {
   evidenceHash: Hex;
   canonicalEvidence: string;
 };
+export type ValidatedMark = ValidatedIndex & { observedAt: number; slots: number; methodology: string };
+type Scope = "full" | "to-date" | "spot";
 
 function requireValue(condition: boolean, reason: string): asserts condition {
   if (!condition) throw new Error(reason);
@@ -92,9 +95,27 @@ export function indexIdentity(terms: IndexTerms): { indexId: Hex; specHash: Hex 
 }
 
 export function validateDataset(data: unknown, terms: IndexTerms, nowSeconds: number): ValidatedIndex {
+  const { price, publishedAt, evidenceHash, canonicalEvidence } = validate(data, terms, nowSeconds, "full");
+  return { price, publishedAt, evidenceHash, canonicalEvidence };
+}
+
+// Period-to-date variant: only slots completed at publication time are required, contiguous from periodStart.
+export function validatePartialDataset(data: unknown, terms: IndexTerms, nowSeconds: number): ValidatedMark {
+  return validate(data, terms, nowSeconds, "to-date");
+}
+
+// Mark policy: until the first period slot completes the mark is the latest completed slot's single observation
+// (the grid extends backwards from periodStart); from then on it is the period-to-date mean.
+export function validateMarkDataset(data: unknown, terms: IndexTerms, nowSeconds: number): ValidatedMark {
+  const publishedAt = (data as { publishedAt?: unknown } | null)?.publishedAt;
+  const spot = typeof publishedAt === "number" && publishedAt < terms.periodStart + terms.slotSeconds;
+  return validate(data, terms, nowSeconds, spot ? "spot" : "to-date");
+}
+
+function validate(data: unknown, terms: IndexTerms, nowSeconds: number, scope: Scope): ValidatedMark {
   validateTerms(terms);
   integer(nowSeconds, "nowSeconds");
-  requireValue(terms.periodEnd <= nowSeconds, "requested period must be completed, not future");
+  requireValue(scope !== "full" || terms.periodEnd <= nowSeconds, "requested period must be completed, not future");
   const source = record(data, [
     "schemaVersion", "mode", "sourceId", "datasetId", "hardware", "currency", "units", "priceDecimals",
     "slotSeconds", "indexId", "specHash", "periodStart", "periodEnd", "publishedAt", "observations",
@@ -108,9 +129,14 @@ export function validateDataset(data: unknown, terms: IndexTerms, nowSeconds: nu
   const spec = hardware(source.hardware);
   requireValue(JSON.stringify(spec) === JSON.stringify(hardware(terms.hardware)), "hardware binding mismatch");
   const publishedAt = integer(source.publishedAt, "publishedAt");
-  requireValue(publishedAt >= terms.periodEnd && publishedAt <= nowSeconds
+  const totalSlots = (terms.periodEnd - terms.periodStart) / terms.slotSeconds;
+  const earliest = scope === "full" ? terms.periodEnd : scope === "to-date" ? terms.periodStart + terms.slotSeconds : 0;
+  requireValue(publishedAt >= earliest && publishedAt <= nowSeconds
     && nowSeconds - publishedAt <= terms.maxPublicationAgeSeconds, "future, stale or premature publication");
-  const expectedCount = (terms.periodEnd - terms.periodStart) / terms.slotSeconds;
+  const completed = Math.floor((publishedAt - terms.periodStart) / terms.slotSeconds);
+  const expectedCount = scope === "full" ? totalSlots : scope === "spot" ? 1 : Math.min(totalSlots, completed);
+  const slotLow = scope === "spot" ? terms.periodStart + (completed - 1) * terms.slotSeconds : terms.periodStart;
+  const slotLimit = scope === "spot" ? slotLow + terms.slotSeconds : terms.periodStart + expectedCount * terms.slotSeconds;
   requireValue(Array.isArray(source.observations) && source.observations.length === expectedCount, "incomplete slot coverage");
   const seen = new Set<number>();
   let total = 0n;
@@ -118,7 +144,7 @@ export function validateDataset(data: unknown, terms: IndexTerms, nowSeconds: nu
     const row = record(value, ["slotStart", "observedAt", "price"]);
     const slotStart = integer(row.slotStart, "slotStart");
     const observedAt = integer(row.observedAt, "observedAt");
-    requireValue(slotStart >= terms.periodStart && slotStart < terms.periodEnd, "slot out of range");
+    requireValue(slotStart >= slotLow && slotStart < slotLimit, "slot out of range");
     requireValue((slotStart - terms.periodStart) % terms.slotSeconds === 0, "slot off grid");
     requireValue(!seen.has(slotStart), "duplicate slot");
     seen.add(slotStart);
@@ -131,8 +157,9 @@ export function validateDataset(data: unknown, terms: IndexTerms, nowSeconds: nu
     requireValue(total <= UINT256_MAX, "price sum overflow");
     return { slotStart, observedAt, price: row.price };
   }).sort((a, b) => a.slotStart - b.slotStart);
+  const methodology = scope === "spot" ? SPOT_METHODOLOGY : METHODOLOGY;
   const canonicalEvidence = JSON.stringify({
-    methodology: METHODOLOGY,
+    methodology,
     dataset: {
       schemaVersion: 1, mode: terms.mode, sourceId: terms.sourceId, datasetId: terms.datasetId, hardware: spec,
       currency: terms.currency, units: terms.units, priceDecimals: terms.priceDecimals, slotSeconds: terms.slotSeconds,
@@ -142,5 +169,6 @@ export function validateDataset(data: unknown, terms: IndexTerms, nowSeconds: nu
   return {
     price: total / BigInt(expectedCount), publishedAt,
     evidenceHash: keccak256(toBytes(canonicalEvidence)), canonicalEvidence,
+    observedAt: observations[expectedCount - 1].observedAt, slots: expectedCount, methodology,
   };
 }

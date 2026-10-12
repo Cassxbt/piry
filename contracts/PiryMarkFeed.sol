@@ -27,7 +27,7 @@ interface AggregatorV3Interface {
 /// with 8 decimals, from 1 to 1e8 (a claim redeems between 0 and 1 unit of a USD-pegged collateral).
 /// The floor is 1, not 0: exchanges reject non-positive prices, and a worthless claim must stay withdrawable.
 /// Updates arrive as CRE reports. Strict mode pins a workflow ID. Simulation mode is DEMO ONLY: the
-/// mock forwarder of `cre workflow simulate --broadcast` carries no workflow identity, so the operator
+/// mock forwarder of `cre workflow simulate --broadcast` carries only placeholder workflow identity, so the operator
 /// EOA that signs the broadcast is trusted via `tx.origin` instead.
 /// Once the market settles the answer is final and `latestRoundData` reports it as updated now, so the
 /// price never goes stale for holders who still need to withdraw.

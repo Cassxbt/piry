@@ -12,7 +12,7 @@ test("authenticated delivery requires explicit transaction and receiver success"
 
 test("simulation cannot imply verified delivery on missing/default receiver status", () => {
   assert.match(deliveryOutcome("simulation", true, "unknown"), /unverified/);
-  assert.match(deliveryOutcome("simulation", true, "success"), /simulation.*not authenticated onchain proof/);
+  assert.match(deliveryOutcome("simulation", true, "success"), /simulation forwarder.*unconfirmed.*not authenticated onchain proof/);
   assert.throws(() => deliveryOutcome("simulation", true, "reverted"), /delivery/);
   assert.throws(() => deliveryOutcome("simulation", false, "unknown"), /delivery/);
 });

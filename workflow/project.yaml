@@ -2,3 +2,8 @@ demo-settings:
   rpcs:
     - chain-name: monad-testnet
       url: https://testnet-rpc.monad.xyz
+
+testnet-settings:
+  rpcs:
+    - chain-name: monad-testnet
+      url: https://testnet-rpc.monad.xyz

@@ -8,6 +8,6 @@ export function deliveryOutcome(
     return "receiver reported success; independently verify authenticated onchain acceptance";
   }
   return receiverStatus === "success"
-    ? "simulation receiver reported success; not authenticated onchain proof"
+    ? "simulation forwarder call succeeded; receiver execution unconfirmed and not authenticated onchain proof: verify contract events"
     : "simulation report produced; receiver delivery unverified";
 }

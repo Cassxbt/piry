@@ -1,27 +1,65 @@
 import { encodeAbiParameters, isAddress, parseAbiParameters, zeroAddress, type Address, type Hex } from "viem";
-import { METHODOLOGY, UINT256_MAX, indexIdentity, validateDataset, type IndexTerms, type ValidatedIndex } from "./validation.js";
+import {
+  METHODOLOGY, UINT256_MAX, indexIdentity, validateDataset, validateMarkDataset,
+  type IndexTerms, type ValidatedIndex, type ValidatedMark,
+} from "./validation.js";
 
 export const REPORT_ABI = parseAbiParameters(
   "(address market,uint256 chainId,bytes32 indexId,bytes32 specHash,uint8 priceDecimals,uint64 periodStart,uint64 periodEnd,uint256 price,uint64 publishedAt,bytes32 evidenceHash)"
 );
 
-export function encodeMarketReport(
-  validated: ValidatedIndex, terms: IndexTerms, destination: { market: Address; chainId: bigint },
-): Hex {
-  if (!isAddress(destination.market) || destination.market.toLowerCase() === zeroAddress
-    || typeof destination.chainId !== "bigint" || destination.chainId <= 0n || destination.chainId > UINT256_MAX) {
+export const MARK_REPORT_ABI = parseAbiParameters(
+  "(address feed,uint256 chainId,bytes32 indexId,uint256 indexPrice,uint64 observedAt,bytes32 evidenceHash)"
+);
+
+function requireDestination(target: Address, chainId: bigint): void {
+  if (!isAddress(target) || target.toLowerCase() === zeroAddress
+    || typeof chainId !== "bigint" || chainId <= 0n || chainId > UINT256_MAX) {
     throw new Error("invalid report destination");
   }
+}
+
+function evidenceDataset(validated: ValidatedIndex): unknown {
   const evidence = JSON.parse(validated.canonicalEvidence);
   if (evidence.methodology !== METHODOLOGY) throw new Error("evidence methodology binding mismatch");
-  const checked = validateDataset(evidence.dataset, terms, validated.publishedAt);
+  return evidence.dataset;
+}
+
+function requireBound(checked: ValidatedIndex, validated: ValidatedIndex): void {
   if (checked.price !== validated.price || checked.publishedAt !== validated.publishedAt
     || checked.evidenceHash !== validated.evidenceHash || checked.canonicalEvidence !== validated.canonicalEvidence) {
     throw new Error("evidence binding mismatch");
   }
+}
+
+export function encodeMarketReport(
+  validated: ValidatedIndex, terms: IndexTerms, destination: { market: Address; chainId: bigint },
+): Hex {
+  requireDestination(destination.market, destination.chainId);
+  requireBound(validateDataset(evidenceDataset(validated), terms, validated.publishedAt), validated);
   return encodeAbiParameters(REPORT_ABI, [{
     ...destination, ...indexIdentity(terms), priceDecimals: terms.priceDecimals,
     periodStart: BigInt(terms.periodStart), periodEnd: BigInt(terms.periodEnd),
     price: validated.price, publishedAt: BigInt(validated.publishedAt), evidenceHash: validated.evidenceHash,
+  }]);
+}
+
+// observedAtMarginSeconds dates the observation conservatively so the feed's observedAt <= block.timestamp check
+// survives clock skew between the data source and the chain.
+export function encodeMarkReport(
+  validated: ValidatedMark, terms: IndexTerms, destination: { feed: Address; chainId: bigint },
+  observedAtMarginSeconds = 0,
+): Hex {
+  requireDestination(destination.feed, destination.chainId);
+  if (!Number.isSafeInteger(observedAtMarginSeconds) || observedAtMarginSeconds < 0
+    || observedAtMarginSeconds >= validated.observedAt) throw new Error("invalid observation time margin");
+  // The mean and the pre-period spot differ only in the methodology label, which is part of the canonical evidence.
+  const checked = validateMarkDataset(JSON.parse(validated.canonicalEvidence).dataset, terms, validated.publishedAt);
+  requireBound(checked, validated);
+  if (checked.observedAt !== validated.observedAt) throw new Error("evidence binding mismatch");
+  return encodeAbiParameters(MARK_REPORT_ABI, [{
+    feed: destination.feed, chainId: destination.chainId, indexId: indexIdentity(terms).indexId,
+    indexPrice: validated.price, observedAt: BigInt(validated.observedAt - observedAtMarginSeconds),
+    evidenceHash: validated.evidenceHash,
   }]);
 }

@@ -64,3 +64,18 @@
 !/deployments/
 /deployments/*
 !/deployments/series.example.json
+!/workflow/mark.ts
+!/workflow/onchain.ts
+!/workflow/init.ts
+!/workflow/config.testnet.example.json
+!/workflow/test/fixtures.ts
+!/workflow/test/partial.test.ts
+!/workflow/test/spot.test.ts
+!/workflow/test/mark-report.test.ts
+!/workflow/runtime-test/mark.test.ts
+!/workflow/runtime-test/demo-source.test.ts
+!/scripts/demo-source.ts
+
+# Secrets: never tracked, even if an allowlist entry above would match.
+/.env*
+/workflow/.env*

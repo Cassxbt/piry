@@ -5,3 +5,11 @@ demo-settings:
     workflow-path: "./main.ts"
     config-path: "./config.demo.json"
     secrets-path: ""
+
+testnet-settings:
+  user-workflow:
+    workflow-name: "piry-testnet-index"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.testnet.json"
+    secrets-path: ""

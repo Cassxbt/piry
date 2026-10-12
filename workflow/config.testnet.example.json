@@ -1,0 +1,30 @@
+{
+  "executionMode": "simulation",
+  "sourceUrl": "http://127.0.0.1:8787/dataset.json",
+  "schedule": "0 */5 * * * *",
+  "chainName": "monad-testnet",
+  "chainId": "10143",
+  "receiver": "REPLACE_WITH_SIMULATION_SETTLEMENT_RECEIVER_ADDRESS",
+  "market": "REPLACE_WITH_MARKET_ADDRESS",
+  "gasLimit": "500000",
+  "mark": {
+    "feed": "REPLACE_WITH_MARK_FEED_ADDRESS",
+    "sourceUrl": "http://127.0.0.1:8787/dataset-to-date.json",
+    "schedule": "0 * * * * *",
+    "gasLimit": "400000",
+    "observedAtMarginSeconds": 15
+  },
+  "terms": {
+    "mode": "DEMO",
+    "sourceId": "piry-demo",
+    "datasetId": "a100-demo-v1",
+    "hardware": { "model": "NVIDIA A100", "memoryGiB": 80, "gpuCount": 1, "region": "demo-region" },
+    "currency": "USD",
+    "units": "USD/GPU-hour",
+    "priceDecimals": 6,
+    "slotSeconds": 60,
+    "periodStart": "REPLACE_WITH_MARKET_PERIOD_START_UNIX_SECONDS",
+    "periodEnd": "REPLACE_WITH_MARKET_PERIOD_END_UNIX_SECONDS",
+    "maxPublicationAgeSeconds": 300
+  }
+}
