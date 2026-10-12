@@ -15,7 +15,7 @@
   },
   "scripts": {
     "test:workflow": "tsc -p workflow/tsconfig.node.json && node --test workflow/.build/test/*.test.js && bun test workflow/runtime-test",
-    "check:workflow": "tsc -p workflow/tsconfig.json && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --strict scripts/settlement-proof.ts && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --resolveJsonModule --skipLibCheck --strict workflow/runtime-test/settlement.test.ts workflow/runtime-test/mark.test.ts && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --strict workflow/runtime-test/demo-source.test.ts scripts/demo-source.ts",
+    "check:workflow": "tsc -p workflow/tsconfig.json && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --strict scripts/settlement-proof.ts && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --resolveJsonModule --skipLibCheck --strict workflow/runtime-test/settlement.test.ts workflow/runtime-test/mark.test.ts workflow/runtime-test/akash.test.ts && tsc --noEmit --target ES2022 --module ESNext --moduleResolution bundler --allowImportingTsExtensions --skipLibCheck --strict workflow/runtime-test/demo-source.test.ts scripts/demo-source.ts",
     "build:workflow": "cd workflow && cre workflow build . -R . -T demo-settings --non-interactive -o binary.wasm",
     "proof:settlement": "bun scripts/settlement-proof.ts",
     "demo:source": "bun scripts/demo-source.ts"

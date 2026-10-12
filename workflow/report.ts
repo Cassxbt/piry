@@ -1,7 +1,8 @@
 import { encodeAbiParameters, isAddress, parseAbiParameters, zeroAddress, type Address, type Hex } from "viem";
+import { validateAkashEvidence } from "./akash.js";
 import {
   METHODOLOGY, UINT256_MAX, indexIdentity, validateDataset, validateMarkDataset,
-  type IndexTerms, type ValidatedIndex, type ValidatedMark,
+  type AnyTerms, type ValidatedIndex, type ValidatedMark,
 } from "./validation.js";
 
 export const REPORT_ABI = parseAbiParameters(
@@ -33,10 +34,12 @@ function requireBound(checked: ValidatedIndex, validated: ValidatedIndex): void 
 }
 
 export function encodeMarketReport(
-  validated: ValidatedIndex, terms: IndexTerms, destination: { market: Address; chainId: bigint },
+  validated: ValidatedIndex, terms: AnyTerms, destination: { market: Address; chainId: bigint },
 ): Hex {
   requireDestination(destination.market, destination.chainId);
-  requireBound(validateDataset(evidenceDataset(validated), terms, validated.publishedAt), validated);
+  requireBound(terms.mode === "AKASH"
+    ? validateAkashEvidence(validated.canonicalEvidence, terms, validated.publishedAt, "settlement")
+    : validateDataset(evidenceDataset(validated), terms, validated.publishedAt), validated);
   return encodeAbiParameters(REPORT_ABI, [{
     ...destination, ...indexIdentity(terms), priceDecimals: terms.priceDecimals,
     periodStart: BigInt(terms.periodStart), periodEnd: BigInt(terms.periodEnd),
@@ -47,14 +50,16 @@ export function encodeMarketReport(
 // observedAtMarginSeconds dates the observation conservatively so the feed's observedAt <= block.timestamp check
 // survives clock skew between the data source and the chain.
 export function encodeMarkReport(
-  validated: ValidatedMark, terms: IndexTerms, destination: { feed: Address; chainId: bigint },
+  validated: ValidatedMark, terms: AnyTerms, destination: { feed: Address; chainId: bigint },
   observedAtMarginSeconds = 0,
 ): Hex {
   requireDestination(destination.feed, destination.chainId);
   if (!Number.isSafeInteger(observedAtMarginSeconds) || observedAtMarginSeconds < 0
     || observedAtMarginSeconds >= validated.observedAt) throw new Error("invalid observation time margin");
   // The mean and the pre-period spot differ only in the methodology label, which is part of the canonical evidence.
-  const checked = validateMarkDataset(JSON.parse(validated.canonicalEvidence).dataset, terms, validated.publishedAt);
+  const checked = terms.mode === "AKASH"
+    ? validateAkashEvidence(validated.canonicalEvidence, terms, validated.publishedAt, "mark")
+    : validateMarkDataset(JSON.parse(validated.canonicalEvidence).dataset, terms, validated.publishedAt);
   requireBound(checked, validated);
   if (checked.observedAt !== validated.observedAt) throw new Error("evidence binding mismatch");
   return encodeAbiParameters(MARK_REPORT_ABI, [{

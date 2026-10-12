@@ -18,7 +18,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { z } from 'zod';
 
-import { indexIdentity, type IndexTerms } from '../workflow/validation.ts';
+import { indexIdentity, type AnyTerms } from '../workflow/validation.ts';
 
 const root = new URL('../', import.meta.url);
 const NETWORKS = { local: 31337, 'monad-testnet': 10143 } as const;
@@ -138,7 +138,11 @@ const main = async () => {
   const seriesPath = values.series
     ? (isAbsolute(values.series) ? values.series : resolve(process.cwd(), values.series))
     : new URL('deployments/series.example.json', root).pathname;
-  const parsed = seriesSchema.safeParse(JSON.parse(await readFile(seriesPath, 'utf8')));
+  const raw = JSON.parse(await readFile(seriesPath, 'utf8'));
+  if (typeof raw?.collateral === 'string' && raw.collateral.startsWith('REPLACE_WITH')) {
+    fail(`collateral is still the placeholder "${raw.collateral}"; set it to the collateral ERC-20 address (the Kuru testnet USDC for the Kuru-listed series)`);
+  }
+  const parsed = seriesSchema.safeParse(raw);
   if (!parsed.success) fail(`invalid series file: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   const series = parsed.data as Series;
   const lower = BigInt(series.bounds.lower);
@@ -191,7 +195,7 @@ const main = async () => {
       for (const [key, value] of Object.entries(filled)) {
         if (key in series.index.terms && series.index.terms[key] !== value) fail(`index.terms.${key} conflicts with the series value ${value}`);
       }
-      identity = indexIdentity({ ...series.index.terms, ...filled } as unknown as IndexTerms);
+      identity = indexIdentity({ ...series.index.terms, ...filled } as unknown as AnyTerms);
     } else {
       identity = { indexId: series.index.indexId as Hex, specHash: series.index.specHash as Hex };
     }

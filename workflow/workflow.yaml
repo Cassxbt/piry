@@ -13,3 +13,11 @@ testnet-settings:
     workflow-path: "./main.ts"
     config-path: "./config.testnet.json"
     secrets-path: ""
+
+akash-settings:
+  user-workflow:
+    workflow-name: "piry-akash-index"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path: "./config.akash.json"
+    secrets-path: ""

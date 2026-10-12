@@ -76,6 +76,14 @@
 !/workflow/runtime-test/demo-source.test.ts
 !/scripts/demo-source.ts
 
+!/workflow/akash.ts
+!/workflow/config.akash.example.json
+!/workflow/test/akash.test.ts
+!/workflow/test/akash-fixtures.ts
+!/workflow/test/akash-gpu-prices.live.json
+!/workflow/runtime-test/akash.test.ts
+!/deployments/series.akash-h100.example.json
+
 # Secrets: never tracked, even if an allowlist entry above would match.
 /.env*
 /workflow/.env*

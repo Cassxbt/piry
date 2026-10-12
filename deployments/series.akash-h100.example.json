@@ -1,0 +1,31 @@
+{
+  "_doc": {
+    "about": "Live H100 series on the Akash console-api GPU price. Copy this file, replace the collateral placeholder, set the period, and pass it with --series. Settlement is a snapshot of the Akash H100 SXM5 weighted-average price taken by CRE at or just after periodEnd.",
+    "collateral": "REPLACE_WITH_KURU_TESTNET_USDC_ADDRESS is a placeholder that scripts/deploy.ts refuses. Set it to the ERC-20 address of the Kuru testnet USDC (at most 18 decimals).",
+    "bounds": "2.00 and 4.00 USD per GPU-hour in 6-decimal index units. A long claim pays 0 at or below 2.00 and the full collateral at or above 4.00.",
+    "periodStart": "Either an absolute unix timestamp or \"+N\" seconds after the latest block. Use absolute timestamps for the real series so periodEnd falls inside the judging window.",
+    "maxReportAge": "Must equal the workflow's maxPublicationAgeSeconds (3600 in workflow/config.akash.example.json).",
+    "index": "AKASH terms. priceDecimals, periodStart, periodEnd and maxPublicationAgeSeconds are filled in from this file. Everything else is part of the spec hash and must equal the terms in the workflow config; the market refuses a report whose hash differs.",
+    "receiver": "simulation mode trusts the deployer EOA behind the Chainlink mock forwarder: use it only with cre workflow simulate --broadcast.",
+    "forwarder": "Monad testnet MockKeystoneForwarder."
+  },
+  "collateral": "REPLACE_WITH_KURU_TESTNET_USDC_ADDRESS",
+  "priceDecimals": 6,
+  "bounds": { "lower": "2000000", "upper": "4000000" },
+  "periodStart": "+600",
+  "periodEnd": "+172800",
+  "maxReportAge": 3600,
+  "fallbackDelay": 604800,
+  "index": {
+    "terms": {
+      "mode": "AKASH",
+      "sourceId": "akash-console-gpu-prices",
+      "selector": { "vendor": "nvidia", "model": "h100", "ram": "80Gi", "interface": "SXM5" },
+      "priceField": "weightedAverage",
+      "minProviders": 2,
+      "sanityBounds": { "min": "0.50", "max": "20.00" }
+    }
+  },
+  "receiver": { "mode": "simulation" },
+  "forwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192"
+}

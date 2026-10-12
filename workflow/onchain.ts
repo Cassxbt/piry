@@ -3,9 +3,10 @@ import {
 } from "@chainlink/cre-sdk";
 import { EVM_PB } from "@chainlink/cre-sdk/pb";
 import type { Hex } from "viem";
+import { snapshotTime, validateAkashResponse, type AkashScope } from "./akash.js";
 import type { Config } from "./config.js";
 import { deliveryOutcome } from "./delivery.js";
-import { MAX_RESPONSE_BYTES } from "./validation.js";
+import { MAX_RESPONSE_BYTES, type AkashTerms } from "./validation.js";
 
 export function fetchSource(requester: HTTPSendRequester, url: string): unknown {
   const response = requester.sendRequest({
@@ -16,6 +17,13 @@ export function fetchSource(requester: HTTPSendRequester, url: string): unknown 
   if (response.statusCode !== 200) throw new Error(`source HTTP status ${response.statusCode}`);
   if (response.body.length > MAX_RESPONSE_BYTES) throw new Error("source response exceeds 64 KiB");
   return JSON.parse(new TextDecoder().decode(response.body));
+}
+
+export function fetchAkashEvidence(
+  requester: HTTPSendRequester, url: string, terms: AkashTerms, nowSeconds: number, scope: AkashScope,
+): string {
+  snapshotTime(terms, nowSeconds, scope);
+  return validateAkashResponse(fetchSource(requester, url), terms, nowSeconds, scope).canonicalEvidence;
 }
 
 export function deliverReport(

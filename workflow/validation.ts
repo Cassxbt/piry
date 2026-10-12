@@ -6,6 +6,9 @@ export const MAX_SLOTS = 168;
 export const UINT256_MAX = (1n << 256n) - 1n;
 export const MAX_PRICE = UINT256_MAX / BigInt(MAX_SLOTS);
 export const MAX_RESPONSE_BYTES = 65536;
+export const AKASH_SOURCE_ID = "akash-console-gpu-prices";
+export const AKASH_METHODOLOGY = "akash-console-snapshot-v1";
+export const AKASH_PRICE_FIELDS = ["weightedAverage", "med"] as const;
 
 export type Hardware = { model: string; memoryGiB: number; gpuCount: number; region: string };
 export type IndexTerms = {
@@ -21,6 +24,20 @@ export type IndexTerms = {
   periodEnd: number;
   maxPublicationAgeSeconds: number;
 };
+export type AkashSelector = { vendor: string; model: string; ram: string; interface: string };
+export type AkashTerms = {
+  mode: "AKASH";
+  sourceId: typeof AKASH_SOURCE_ID;
+  selector: AkashSelector;
+  priceField: (typeof AKASH_PRICE_FIELDS)[number];
+  minProviders: number;
+  sanityBounds: { min: string; max: string };
+  priceDecimals: number;
+  periodStart: number;
+  periodEnd: number;
+  maxPublicationAgeSeconds: number;
+};
+export type AnyTerms = IndexTerms | AkashTerms;
 export type ValidatedIndex = {
   price: bigint;
   publishedAt: number;
@@ -30,19 +47,23 @@ export type ValidatedIndex = {
 export type ValidatedMark = ValidatedIndex & { observedAt: number; slots: number; methodology: string };
 type Scope = "full" | "to-date" | "spot";
 
-function requireValue(condition: boolean, reason: string): asserts condition {
+export function requireValue(condition: boolean, reason: string): asserts condition {
   if (!condition) throw new Error(reason);
 }
 
+export function plainObject(value: unknown, name = "schema object"): Record<string, unknown> {
+  requireValue(typeof value === "object" && value !== null && !Array.isArray(value), `invalid ${name}`);
+  return value as Record<string, unknown>;
+}
+
 function record(value: unknown, fields: string[]): Record<string, unknown> {
-  requireValue(typeof value === "object" && value !== null && !Array.isArray(value), "invalid schema object");
-  const object = value as Record<string, unknown>;
+  const object = plainObject(value);
   const keys = Object.keys(object);
   requireValue(keys.length === fields.length && fields.every(key => Object.hasOwn(object, key)), "invalid schema fields");
   return object;
 }
 
-function integer(value: unknown, name: string, min = 0, max = Number.MAX_SAFE_INTEGER): number {
+export function integer(value: unknown, name: string, min = 0, max = Number.MAX_SAFE_INTEGER): number {
   requireValue(typeof value === "number" && Number.isSafeInteger(value) && value >= min && value <= max,
     `${name} must be a bounded safe integer`);
   return value;
@@ -63,7 +84,52 @@ function hardware(value: unknown): Hardware {
   };
 }
 
-export function validateTerms(terms: IndexTerms): void {
+// Scales a plain or exponent decimal string to integer units. Excess digits are floored unless exact is set.
+export function decimalUnits(text: string, decimals: number, exact: boolean): bigint {
+  const match = /^(0|[1-9][0-9]*)(?:\.([0-9]+))?(?:e([+-]?[0-9]+))?$/.exec(text);
+  requireValue(match !== null, "invalid decimal");
+  const [, whole, fraction = "", exponent = "0"] = match;
+  const shift = Number(exponent) + decimals - fraction.length;
+  const digits = BigInt(whole + fraction);
+  if (shift >= 0) return digits * 10n ** BigInt(shift);
+  const divisor = 10n ** BigInt(-shift);
+  requireValue(!exact || digits % divisor === 0n, "decimal has more digits than the price scale");
+  return digits / divisor;
+}
+
+export function sanityUnits({ sanityBounds, priceDecimals }: AkashTerms): { min: bigint; max: bigint } {
+  const bound = (value: unknown, name: string) => {
+    requireValue(typeof value === "string" && /^(0|[1-9][0-9]{0,11})(\.[0-9]+)?$/.test(value), `sanity ${name} must be a plain decimal string`);
+    return decimalUnits(value, priceDecimals, true);
+  };
+  const { min, max } = record(sanityBounds, ["min", "max"]);
+  return { min: bound(min, "min"), max: bound(max, "max") };
+}
+
+function akashSelector(value: unknown): AkashSelector {
+  const data = record(value, ["vendor", "model", "ram", "interface"]);
+  return {
+    vendor: label(data.vendor, "vendor"), model: label(data.model, "model"),
+    ram: label(data.ram, "ram"), interface: label(data.interface, "interface"),
+  };
+}
+
+function validateAkashTerms(terms: AkashTerms): void {
+  requireValue(terms.sourceId === AKASH_SOURCE_ID, "unsupported index binding");
+  akashSelector(terms.selector);
+  requireValue((AKASH_PRICE_FIELDS as readonly unknown[]).includes(terms.priceField), "unsupported price field");
+  integer(terms.minProviders, "minProviders", 1, 1000);
+  integer(terms.priceDecimals, "priceDecimals", 0, 18);
+  integer(terms.periodStart, "periodStart");
+  integer(terms.periodEnd, "periodEnd");
+  integer(terms.maxPublicationAgeSeconds, "maxPublicationAgeSeconds", 1, 86400);
+  requireValue(terms.periodEnd > terms.periodStart, "period must be non-empty");
+  const { min, max } = sanityUnits(terms);
+  requireValue(min > 0n && min < max, "sanity bounds must satisfy 0 < min < max");
+}
+
+export function validateTerms(terms: AnyTerms): void {
+  if (terms.mode === "AKASH") return validateAkashTerms(terms);
   requireValue(terms.mode === "DEMO" && terms.currency === "USD" && terms.units === "USD/GPU-hour", "unsupported index binding");
   label(terms.sourceId, "sourceId");
   label(terms.datasetId, "datasetId");
@@ -86,8 +152,23 @@ function specification(terms: IndexTerms) {
   };
 }
 
-export function indexIdentity(terms: IndexTerms): { indexId: Hex; specHash: Hex } {
+function akashIdentity(terms: AkashTerms): { indexId: Hex; specHash: Hex } {
+  const { vendor, model, ram, interface: connector } = terms.selector;
+  const { min, max } = sanityUnits(terms);
+  return {
+    indexId: keccak256(toBytes(JSON.stringify(["piry-index-v1", terms.mode, terms.sourceId, vendor, model, ram, connector, terms.priceField]))),
+    specHash: keccak256(toBytes(JSON.stringify({
+      schemaVersion: 1, mode: terms.mode, sourceId: terms.sourceId, selector: { vendor, model, ram, interface: connector },
+      priceField: terms.priceField, minProviders: terms.minProviders,
+      sanityBounds: { min: min.toString(), max: max.toString() },
+      priceDecimals: terms.priceDecimals, methodology: AKASH_METHODOLOGY,
+    }))),
+  };
+}
+
+export function indexIdentity(terms: AnyTerms): { indexId: Hex; specHash: Hex } {
   validateTerms(terms);
+  if (terms.mode === "AKASH") return akashIdentity(terms);
   return {
     indexId: keccak256(toBytes(JSON.stringify(["piry-index-v1", terms.mode, terms.sourceId, terms.datasetId]))),
     specHash: keccak256(toBytes(JSON.stringify(specification(terms)))),
