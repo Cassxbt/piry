@@ -1,10 +1,10 @@
 # Piry
 
-Capped, collateralized GPU-price claims on Monad: trade them on Kuru order books, settled by a Chainlink CRE workflow.
+Piry lets GPU renters and providers trade fully backed, capped exposure to an H100 rental-price index on Monad, with transparent settlement evidence. Claims trade on Kuru order books and are settled by a Chainlink CRE workflow.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 [![Solidity](https://img.shields.io/badge/Solidity-0.8.31-363636?style=flat-square&logo=solidity&logoColor=white)](foundry.toml)
-[![Tests](https://img.shields.io/badge/tests-509%20in%20make%20verify-brightgreen?style=flat-square)](#verification)
+[![Tests](https://img.shields.io/badge/tests-per--suite%20counts-brightgreen?style=flat-square)](#verification)
 [![Network](https://img.shields.io/badge/Monad-testnet-6E54FF?style=flat-square)](#deployed-contracts-and-sponsor-integrations)
 [![Chainlink CRE](https://img.shields.io/badge/Chainlink-CRE-375BD2?style=flat-square&logo=chainlink&logoColor=white)](#chainlink-cre)
 [![Kuru](https://img.shields.io/badge/Kuru-V2%20order%20books-111111?style=flat-square)](#kuru)
@@ -15,7 +15,7 @@ Capped, collateralized GPU-price claims on Monad: trade them on Kuru order books
 
 ## Demo
 
-- **Live product:** [piry.vercel.app](https://piry.vercel.app) reads Monad testnet directly, no wallet needed: the live index and mark history, the Kuru PIRY-L and PIRY-S order books, an exposure calculator, and an Evidence page that rebuilds the accepted and refused settlement ledger from on-chain receipts.
+- **Live product:** [piry.vercel.app](https://piry.vercel.app) reads Monad testnet directly, no wallet needed: the live index and mark history, the Kuru PIRY-L and PIRY-S order books, an exposure calculator, and an Evidence page that rebuilds the accepted report and the refused reports found in its scanned block range (plus pinned records) from on-chain receipts.
 - **Full lifecycle on-chain, in minutes:** the fast-demo series ran mint, mark, refused bad data, CRE settlement, refused replay and redeem on Monad testnet. Every step is a transaction below ([jump to it](#fast-demo-series-full-lifecycle-on-chain)).
 - **Live series settles during judging:** the H100 series settles on **2026-10-19 12:00 UTC** and anyone can watch the settlement land on-chain.
 
@@ -23,11 +23,11 @@ Capped, collateralized GPU-price claims on Monad: trade them on Kuru order books
 
 ## Overview
 
-Quotes for the same H100 differ by 25 to 35 percent between providers, and prices move, so teams that rent H100s by the hour (inference startups on fixed-price plans, AI agents that pay per job) carry that risk unhedged. Owners of GPUs and lenders against GPU collateral carry the opposite risk. There is no tradable, on-chain instrument for it.
+Quotes for the same H100 differ between providers (in our 13 Oct 2026 snapshot the four sources ranged from $2.69 to $4.17 per GPU-hour) and prices move, so teams that rent H100s by the hour (inference startups on fixed-price plans, AI agents that pay per job) carry that price risk unhedged. Owners of GPUs and lenders against GPU collateral carry the opposite risk. We are not aware of a comparable small, fully collateralized on-chain instrument, but we did not run a complete competitive census.
 
-Piry mints **paired long and short ERC-20 claims** on a GPU-hour price index inside a fixed price band. The two claims always pay out exactly the collateral deposited, so the contract is fully collateralized and the loss is capped at the band by design. Each claim trades on its own **Kuru** order book; a **Chainlink CRE** workflow computes the index from four public GPU price sources and settles the market on-chain.
+Piry mints **paired long and short ERC-20 claims** on a GPU-hour price index inside a fixed price band. Every pair is backed by exactly the collateral deposited: merging a pair returns it exactly, and the two legs together are worth one collateral unit at any price. If the two legs are redeemed separately each payout rounds down, so a matched pair can leave a unit of dust. The contract is fully collateralized and the payout is capped at the band by design. Each claim trades on its own **Kuru** order book; a **Chainlink CRE** workflow computes the index from four public GPU price sources and settles the market on-chain.
 
-It is a cash-settled capped hedge, not a guaranteed GPU bill: it does not reserve compute, deliver hardware or reimburse invoices.
+It is a cash-settled capped exposure to an index snapshot, not a locked GPU bill: it does not lock a monthly compute bill, reserve compute, deliver hardware or reimburse invoices.
 
 ## Features
 
@@ -36,17 +36,17 @@ It is a cash-settled capped hedge, not a guaranteed GPU bill: it does not reserv
 - **Real order books** — PIRY-L/USDC and PIRY-S/USDC are Kuru V2 markets on Monad testnet, with on-chain AggregatorV3 price feeds (`PiryMarkFeed`, `PiryShortFeed`) built for them.
 - **Multi-source index** — the Piry H100 Composite takes the median of Akash, RunPod, Verda and Shadeform, needs at least 3 of 4 valid, and records every failure in hashed evidence.
 - **Auditable settlement** — a CRE workflow settles once; replays and bad data are refused, and an evidence hash on-chain commits to the exact source values.
-- **Liveness backstop** — if no valid report arrives within 7 days of expiry, anyone can call `settleFallback()` to settle at the band midpoint. No holder is ever locked.
-- **Agent-ready** — a MetaMask Agent Wallet plugin lets an AI agent size, buy, track, unwind and redeem a hedge inside a spending cap.
-- **509 tests in `make verify`** — 132 Solidity (fuzz and adversarial-token suites), 9 Python, 248 Node and 120 Bun workflow tests.
+- **Liveness backstop** — if no valid report arrives within 7 days of expiry, anyone can call `settleFallback()` to settle at the band midpoint. Until then a holder of one leg cannot redeem it (a matched pair can always be merged); the midpoint is a fixed split of the band, not a recovery of the fair price, the first settlement wins, and it gives a holder on the losing side a reason to stay silent until the window opens.
+- **Agent-ready** — a MetaMask Agent Wallet plugin lets an AI agent size, buy, track, unwind and redeem a hedge, with its own max-premium cap and preview-first flow (see the Guard note under the plugin section).
+- **Tested per suite** — Solidity (fuzz and adversarial-token suites), Python, Node and Bun workflow, plugin and app suites; see [Verification](#verification) for dated per-suite counts.
 
 ## How it works
 
 1. **Mint:** deposit USDC into `ComputeMarket`, receive equal PIRY-L and PIRY-S.
 2. **Trade:** buy or sell either claim on its Kuru order book. A hedger buys PIRY-L; a GPU owner buys PIRY-S.
-3. **Mark:** every 15 minutes a keeper runs the CRE mark handler, which writes the composite index (mapped through the band) to `PiryMarkFeed`; `PiryShortFeed` serves `1 - long`. Both are AggregatorV3 feeds, the price-source format Kuru asked for.
-4. **Settle:** after expiry the CRE settlement handler snapshots the composite, ABI-encodes a report bound to the chain, market, index id, spec hash and period, and delivers it to the receiver, which calls `settle` exactly once.
-5. **Redeem:** burn claims for their fixed payout. If CRE never settles, `settleFallback()` opens 7 days after expiry.
+3. **Mark:** a keeper checks every 5 minutes and runs the CRE mark handler when the index moves, and at least every 20 minutes (a target, not a guarantee); the mark writes the composite index (mapped through the band) to `PiryMarkFeed`; `PiryShortFeed` serves `1 - long`. Both are AggregatorV3 feeds, the price-source format Kuru asked for.
+4. **Settle:** after expiry the CRE settlement handler takes a snapshot of the composite when it executes (up to 24 hours after expiry, per the workflow config), ABI-encodes a report bound to the chain, market, index id, spec hash and period, and delivers it to the receiver, which calls `settle` exactly once.
+5. **Redeem:** burn claims for their payout. If no valid report is delivered, `settleFallback()` opens 7 days after expiry and settles at the band midpoint (first settlement wins).
 
 Payout for lower bound `L`, upper bound `U`, settlement price `P` and `q` claims:
 
@@ -73,7 +73,7 @@ flowchart LR
         ST["Settlement handler (trigger 0)<br/>snapshot at expiry, evidence hash"]
     end
 
-    KP["Keeper (scripts/keeper.sh)<br/>EC2 systemd timer, 15 min"]
+    KP["Keeper (scripts/keeper.sh)<br/>EC2 systemd timer, 5 min"]
 
     subgraph MON["Monad testnet"]
         FWD["CRE mock forwarder"]
@@ -146,7 +146,7 @@ Band $2.50 to $4.50, 6 decimals, max report age 6 h, fallback delay 7 days. Coll
 | Seeding: deposit PIRY-L / PIRY-S / USDC (11,997.02) | [`0x4f2e58e3…2c9e97`](https://testnet.monadscan.com/tx/0x4f2e58e364245430595925c4fbb83bb4a661ff463a28da0a92a8e7bbae2c9e97) / [`0x06a202b6…49a321`](https://testnet.monadscan.com/tx/0x06a202b66e1136a23cc952e9c33ce27a784c2cd3e825c895794cf36f2749a321) / [`0x078bc07c…92df14`](https://testnet.monadscan.com/tx/0x078bc07ce02e7d762a381ce20299b017c1df5e819db7f715a15b50cf8d92df14) |
 | Seeding: post orders PIRY-L / PIRY-S | [`0xb075423c…efe6ae`](https://testnet.monadscan.com/tx/0xb075423c9858c9648e5f97a00c46383ef0229a6aec7d99b49add0c1f51efe6ae) / [`0x1d5527f9…d81160`](https://testnet.monadscan.com/tx/0x1d5527f9c3ed7d7d81618fbab30ab89e1c582a82ea56c25b2496efbbc0d81160) |
 
-Kuru deployed both markets for us from the claim token addresses Piry supplied; Piry built the two AggregatorV3 feeds Kuru asked for. Kuru's withdrawal limiter prices PIRY-L and PIRY-S through Kuru adapters that wrap these two feeds, and rejects prices older than 1,800 s, so the keeper keeps the mark under 20 minutes old. Params: tick 0.0001, min notional 1 USDC, taker 0.07 percent, maker 0.04 percent. Each book was seeded with 10 resting team orders (5 bids, 5 asks, 2 to 6 percent around fair value).
+Kuru deployed both markets for us from the claim token addresses Piry supplied; Piry built the two AggregatorV3 feeds Kuru asked for. Kuru's withdrawal limiter prices PIRY-L and PIRY-S through Kuru adapters that wrap these two feeds, and rejects claim deposits and withdrawals when the price is older than 1,800 s. The keeper targets a mark no older than 20 minutes (it checks every 5 minutes), but that is a target: if the keeper or a source fails the mark ages, and the app shows the observed age. Params: tick 0.0001, min notional 1 USDC, taker 0.07 percent, maker 0.04 percent. Each book was seeded with 10 resting team orders (5 bids, 5 asks, 2 to 6 percent around fair value).
 
 ### Chainlink CRE
 
@@ -155,14 +155,14 @@ Kuru deployed both markets for us from the claim token addresses Piry supplied; 
 | Workflow | `piry-composite-index` ([`workflow/`](workflow/)): two cron handlers, **settlement** (trigger 0) and **mark** (trigger 1), sharing one validation and encoding path |
 | Index | Composite of four live HTTP sources, per-source consensus, median rule, evidence hash (see [the index](#piry-h100-composite-the-index)) |
 | Delivery | `cre workflow simulate --broadcast` through the CRE mock forwarder [`0xB9F79d…eAd192`](https://testnet.monadscan.com/address/0xB9F79d863261869B234c481D1f9A7af84AeAd192) into the operator-gated receiver |
-| Live marks | Run by the keeper every 15 minutes; rounds visible on [`0xE4B792…0EbE5e`](https://testnet.monadscan.com/address/0xE4B79233F8ac4804BABfD6bd065aA6596b0EbE5e) |
+| Live marks | Checked by the keeper every 5 minutes, published when the index moves and at least every 20 minutes (target); rounds visible on [`0xE4B792…0EbE5e`](https://testnet.monadscan.com/address/0xE4B79233F8ac4804BABfD6bd065aA6596b0EbE5e) |
 | Fast-demo settlement | [`0x44b935ac…718338`](https://testnet.monadscan.com/tx/0x44b935ac592035426b2cf07ecacf53b5c824e731a9b32f3ac3126ae60d718338): price $2.658755, forwarder `ReportProcessed.result = true` |
 | Refused replay | [`0x66ebd575…42435d`](https://testnet.monadscan.com/tx/0x66ebd575d1441cadfcfe5a29d9f904c8005ab52081080c7405ca3a0e2f42435d): forwarder `result = false`, receiver reverted `AlreadySettled`, state unchanged |
 | Reproduce without keys | `make cre-simulate` (see [Run it yourself](#run-it-yourself)) |
 
 ### MetaMask Agent Wallet plugin
 
-[`plugins/metamask-piry/`](plugins/metamask-piry/README.md) adds `mm piry quote | hedge | position | unwind | redeem` for an `mm` Agent Wallet. The plugin holds no key: every write goes through the wallet executor, so MetaMask policy, threat scanning and 2FA apply. Spending caps, slippage floors and on-chain market checks run before anything is proposed. The live Kuru PIRY-L and PIRY-S markets are built in as defaults; `mm piry quote` against `mm` 7.1.0 reproduced index 3.4085 from the feed and from the four sources. 51 offline tests (plus 4 live read-only).
+[`plugins/metamask-piry/`](plugins/metamask-piry/README.md) adds `mm piry quote | hedge | position | unwind | redeem` for an `mm` Agent Wallet. The plugin holds no key: every write goes through the wallet executor. The plugin itself enforces a max-premium cap, slippage floors and on-chain market checks before anything is proposed. Guard, as we observed it: policy changes required email MFA, but on Monad testnet (10143) the allowlist and 24-hour outflow limit did not block transfers of PIRY-L and MON to a non-allowlisted team address in our test (13 Oct 2026), so wallet-level spending policy is not something we can claim is enforced on this chain. The live Kuru PIRY-L and PIRY-S markets are built in as defaults; `mm piry quote` against `mm` 7.1.0 reproduced index 3.4085 from the feed and from the four sources. A real Agent Wallet run on 13 Oct 2026 (`mm piry hedge --gpu-hours 20 --max-premium 20`: approve, deposit, swap, withdraw) bought 39 PIRY-L for 18.085 USDC, a partial fill by design (premium cap and book depth). Offline tests: 165 passed, 4 live read-only tests skipped (13 Oct 2026, after the review fixes).
 
 ### Fast-demo series: full lifecycle on-chain
 
@@ -196,10 +196,10 @@ The USD price of one H100 SXM GPU-hour, computed inside the CRE workflow from fo
 - **Quorum:** at least 3 of 4 sources must be valid, otherwise the workflow fails closed and writes nothing.
 - **Failure codes:** a failed source is kept in the evidence with a fixed code, never free text: `http-status`, `response-too-large`, `invalid-response`, `outside-sanity-bounds`, `below-minimum-count`, `unavailable-or-no-consensus`.
 - **Sanity bounds:** each source value must sit between $0.50 and $20.00 per GPU-hour.
-- **Evidence:** the canonical JSON of all four entries plus the methodology (`composite-median-v1`) and `specHash` is keccak256-hashed; the hash goes on-chain with every report and the app re-derives it in the browser.
-- **Settlement:** a snapshot at expiry. The snapshot minute must be at or after `periodEnd` and inside the 6-hour publication window.
+- **Evidence:** the canonical JSON of all four entries plus the methodology (`composite-median-v1`), `specHash` and snapshot time is keccak256-hashed; the hash goes on-chain with every report. The keeper saves the exact bytes under `evidence/composite/<hash>.json`; `npm run evidence:publish` in `app/` copies them (after checking each hash) to `app/public/evidence/composite/`, where the app looks them up by the on-chain hash. The app then recomputes the hash, the quorum, the integer median and the series binding in the browser, and shows verified, failed, unavailable or reported-but-unverified. Until a file is published the page says unavailable. A hash match proves the bytes, not that the providers' prices were true.
+- **Settlement:** one snapshot taken when settlement executes, at or after `periodEnd` and up to 24 hours after it (`maxPublicationAgeSeconds` 86400 in the workflow config, not part of the `specHash`). The contract's separate 6-hour `maxReportAge` limits the report's age at delivery, not how long after expiry the snapshot may be taken. Quorum counts catalogues and providers that returned an acceptable price, not rentable capacity, and each timestamp is the time the workflow fetched the sources, not a time published by the providers.
 
-**Licensing:** this is a hackathon index built from public no-auth endpoints. Akash's console API is Apache-2.0; our licensing review rated RunPod and Shadeform uncertain for index use and did not separately review Verda, so Piry claims no production data rights. The production path is licensed or provider-signed price data swapped into the same four-source slots, plus the strict `SettlementReceiver` below. Source prices differ by 25 to 35 percent, which is why the median is used instead of a single vendor.
+**Licensing:** this is a hackathon index built from public no-auth endpoints. Akash's console API is Apache-2.0; our licensing review rated RunPod and Shadeform uncertain for index use and did not separately review Verda, so Piry claims no production data rights. The production path is licensed or provider-signed price data swapped into the same four-source slots, plus the strict `SettlementReceiver` below. The sources disagree materially, which is why the median is used instead of a single vendor.
 
 ## What is real and what is simulated
 
@@ -209,24 +209,24 @@ The USD price of one H100 SXM GPU-hour, computed inside the CRE workflow from fo
 | Kuru markets and order books | **Real** Kuru V2 markets created by Kuru; **liquidity is team-seeded**, so fills are test activity, not organic demand |
 | Index data | **Real** live prices fetched from the four public APIs at run time |
 | CRE workflow | **Real** CRE SDK code compiled and executed by the CRE CLI. Run via **CLI simulation with `--broadcast`**, not a DON: a single-node simulator, no multi-node consensus |
-| Settlement delivery | Goes through the CRE **mock forwarder** into `SimulationSettlementReceiver`, which accepts a call only from that forwarder **and** from the configured operator (`tx.origin`). Authenticity rests on the operator key, not DON signatures. DON deployment needs Chainlink commercial terms, which are in progress |
+| Settlement delivery | Goes through the CRE **mock forwarder** into `SimulationSettlementReceiver`, which accepts a call only from that forwarder **and** from the configured operator (`tx.origin`). Authenticity rests on the operator key, not DON signatures, and because the check is `tx.origin` the operator must never call an untrusted contract. DON deployment needs Chainlink commercial terms, which are in progress |
 | Production receiver | `SettlementReceiver` is built and tested (immutable forwarder, workflow id, 64-byte metadata check). It is **not** deployed on the live series |
-| Keeper | A script on a single EC2 host runs the 15-minute marks and the settlement; it is a convenience, not a decentralized network |
-| MetaMask plugin writes | Tested against a calldata-decoding chain simulator; reads are live. Not yet run through a real Agent Wallet |
+| Keeper | A script on a single EC2 host checks every 5 minutes, publishes marks when the index moves (at least every 20 minutes, target) and runs the settlement; it is a convenience, not a decentralized network |
+| MetaMask plugin writes | Tested offline against a calldata-decoding chain simulator, and exercised once through a real Agent Wallet on Monad testnet on 13 Oct 2026 (39 PIRY-L for 18.085 USDC). Guard policy changes required MFA; the allowlist and outflow limit did not block transfers on 10143 in our test |
 | Network and funds | **Testnet only**, test tokens, no real value, unaudited |
 
 ## Verification
 
-`make verify` (run 13 Oct 2026, exit 0):
+Per-suite results with their dates. These are historical records, not one current total: rerun `make verify` for today's numbers.
 
-| Suite | Result |
-|---|---|
-| Solidity (Foundry, incl. fuzz and adversarial-token suites) | 132 passed |
-| Python (Kuru preflight checker) | 9 passed |
-| Workflow, Node test runner | 248 passed |
-| Workflow, Bun runtime tests | 120 passed |
-| Plugin (`npm test` in `plugins/metamask-piry`) | 51 passed, 4 live tests skipped |
-| App (`npm test` in `app`, vitest) | 103 passed at last recorded run |
+| Suite | Result | When |
+|---|---|---|
+| Solidity (Foundry, incl. fuzz and adversarial-token suites) | 132 passed (`make verify`); 136 passed across 10 suites in the independent review | 13 Oct 2026 |
+| Python (Kuru preflight checker) | 9 passed | 13 Oct 2026 |
+| Workflow, Node test runner | 251 passed after the review fixes (248 before) | 13 Oct 2026 |
+| Workflow, Bun runtime tests (incl. 23 keeper tests on stubbed `cre`/`cast`) | 184 passed after the review fixes (120 before) | 13 Oct 2026 |
+| Plugin (`npm test` in `plugins/metamask-piry`) | 165 passed after the review fixes (64 before), 4 live tests skipped | 13 Oct 2026 |
+| App (`npm test` in `app`, vitest) | 300 passed after the review fixes (139 before them), plus the same suite passing in a copy of the tracked files only | 13 Oct 2026 |
 
 Also: `make settlement-proof` runs validated data to report to receiver to settlement to redemption on a loopback Anvil, including duplicate data, a wrong-chain report and replay. A green CLI run is never treated as settlement; outcomes are read from the `Settled` event and contract state.
 
@@ -238,7 +238,7 @@ Requires Node.js 22, Bun, Python 3, Make and Foundry (verified with Foundry 1.5.
 git clone https://github.com/Cassxbt/piry && cd piry
 npm ci --ignore-scripts
 forge build
-make verify          # 509 tests, offline, no keys
+make verify          # offline, no keys
 ```
 
 Reproduce the CRE run without a wallet or funds (needs the [CRE CLI](https://docs.chain.link/cre) 1.38.0 and a free `cre login`, or `CRE_API_KEY`; no private key, no `--broadcast`, no transaction):
@@ -257,7 +257,7 @@ More targets:
 | `make preflight` | Read-only Kuru V2 baseline checks on Monad testnet |
 | `make deploy-local` | Deploy a series to a local Anvil |
 | `make seed-kuru` / `make test-trades` | Dry-run by default; real testnet needs `NETWORK=monad-testnet DRY_RUN=0 CONFIRM=1` and a funded key |
-| `cd app && npm ci && npm run dev` | Run the judge app locally |
+| `cd app && npm ci && npm run dev` | Run the judge app locally. A clean clone builds from the tracked `deployments/monad-testnet.public.json`; the ignored local manifests, when present, take precedence |
 
 Try the MetaMask plugin (read-only works before login):
 
@@ -298,10 +298,13 @@ Never commit `.env*` files; the repository ignores them.
 ## Security and limitations
 
 - **Testnet prototype, unaudited.** No real funds, no production-readiness claim.
-- **Operator-gated settlement.** On the live series the operator key can submit the settlement report. The strict `SettlementReceiver` (forwarder plus workflow id) is the production design; the 7-day permissionless `settleFallback()` bounds the damage of a stalled oracle but is itself a midpoint settlement.
-- **Data trust.** Source checks verify shape, units and bounds, not truth. The four sources are unlicensed public endpoints and thin for H100 SXM (Akash has few providers).
+- **Operator-gated settlement.** On the live series the operator key can submit the settlement report, and the receiver checks `tx.origin`, so the operator must never call an untrusted contract. The strict `SettlementReceiver` (forwarder plus workflow id) is the production design.
+- **Fallback is not fair-value recovery.** The 7-day permissionless `settleFallback()` ends a stalled oracle but settles at the band midpoint: first settlement wins (a ready valid report can lose the race), and a holder who would have been paid less has a reason to withhold the report until the window opens. The disclosure is the mitigation; the incentive remains in this deployment.
+- **Settlement timing.** The price is a snapshot taken when settlement executes, up to 24 hours after expiry; it is not the price at expiry and not an average of a month.
+- **Data trust.** Source checks verify shape, units and bounds, not truth. The four sources are unlicensed public endpoints and thin for H100 SXM (Akash has few providers). Quorum counts catalogues and providers, not rentable capacity, and timestamps are fetch times. Keeper-side checks (a full four-source dry run before settlement) are not the same fetch as the broadcast; the settlement handler itself accepts three of four.
 - **Basis risk.** The index tracks listed on-demand prices; a hedger's actual bill can differ. Payouts are capped at the band.
-- **Rounding.** Each leg rounds down independently; merging matched pairs avoids dust. Set a minimum payout when redeeming.
+- **Rounding.** Merging a pair is exact. Redeeming the two legs separately rounds each payout down independently, so a matched pair can leave a unit of dust. Set a minimum payout when redeeming, and merge matched pairs instead.
+- **Traction.** Activity in the app is labelled team (deployer, scripted test wallets, the Agent Wallet, judge wallets, QA wallets) or unclassified; unclassified is not evidence of independent users.
 - **Collateral.** Only exact-transfer, non-rebasing ERC-20s are supported.
 - **Liquidity.** Both Kuru books are seeded by the team and thin; do not read quotes as market consensus.
 - **Dependencies** keep their licenses: OpenZeppelin (MIT), CRE SDK 1.23.0 (BUSL-1.1).
