@@ -24,6 +24,9 @@ export const SERIES: Series = {
 
 export const KURU_ACCOUNT_CORE: Address = "0xdbaaDe7B42c95399bb1E9614D51B5B9e2cf78038";
 
+export const DEFAULT_KURU_MARKET: Address = getAddress("0xe2393d5f15523931e59f340cffebcde30fa7db1a");
+export const DEFAULT_KURU_SHORT_MARKET: Address = getAddress("0xd93db02c88d645e669a3965cd46e72cca137f193");
+
 export interface Config {
   rpcUrl: string;
   series: Series;
@@ -67,11 +70,17 @@ function checkKuruMarket(raw: string, label: string): Address {
 
 const blank = (value: string | undefined): string | undefined => (value && value.trim() !== "" ? value.trim() : undefined);
 
+// A flag or env var overrides the default; an explicitly blank one disables the market.
+function pickMarket(flag: string | undefined, envValue: string | undefined, fallback: Address): string | undefined {
+  const raw = flag ?? envValue;
+  return raw === undefined ? fallback : blank(raw);
+}
+
 export function resolveConfig(input: ConfigInput = {}): Config {
   const env = input.env ?? {};
   const rpc = blank(input.rpcUrl) ?? blank(env.PIRY_RPC_URL) ?? DEFAULT_RPC_URL;
-  const market = blank(input.kuruMarket) ?? blank(env.PIRY_KURU_MARKET);
-  const shortMarket = blank(input.kuruShortMarket) ?? blank(env.PIRY_KURU_SHORT_MARKET);
+  const market = pickMarket(input.kuruMarket, env.PIRY_KURU_MARKET, DEFAULT_KURU_MARKET);
+  const shortMarket = pickMarket(input.kuruShortMarket, env.PIRY_KURU_SHORT_MARKET, DEFAULT_KURU_SHORT_MARKET);
   return {
     rpcUrl: checkRpcUrl(rpc),
     series: SERIES,

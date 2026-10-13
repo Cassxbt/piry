@@ -97,6 +97,11 @@
 !/test/PiryShortFeed.t.sol
 !/scripts/seed-kuru.ts
 !/scripts/seed-kuru.test.ts
+!/deployments/monad-testnet.public.json
+!/workflow/config.composite.live.json
+!/scripts/keeper.sh
+!/scripts/test-trades.ts
+!/scripts/test-trades.test.ts
 !/plugins/
 /plugins/*
 !/plugins/metamask-piry/

@@ -43,7 +43,7 @@ export class Sim {
   }
 
   config(over: { long?: boolean; short?: boolean } = {}): Config {
-    return resolveConfig({ kuruMarket: over.long ? LONG_MARKET : undefined, kuruShortMarket: over.short ? SHORT_MARKET : undefined });
+    return resolveConfig({ kuruMarket: over.long ? LONG_MARKET : "", kuruShortMarket: over.short ? SHORT_MARKET : "" });
   }
 
   private key = (a: Address) => (low(a) === low(SERIES.collateral) ? "usdc" : low(a) === low(SERIES.longClaim) ? "long" : "short");

@@ -1,16 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { DEFAULT_RPC_URL, KURU_ACCOUNT_CORE, SERIES, resolveConfig } from "../src/config.js";
+import { DEFAULT_KURU_MARKET, DEFAULT_KURU_SHORT_MARKET, DEFAULT_RPC_URL, KURU_ACCOUNT_CORE, SERIES, resolveConfig } from "../src/config.js";
 import { PiryError } from "../src/errors.js";
 
 const code = (fn: () => unknown) => { try { fn(); } catch (e) { return (e as PiryError).code; } return null; };
 const MARKET = "0x2222222222222222222222222222222222222222";
 
-test("defaults: public Monad RPC, no Kuru markets", () => {
+test("defaults: public Monad RPC and the live Kuru PIRY-L and PIRY-S books", () => {
   const c = resolveConfig();
   assert.equal(c.rpcUrl, new URL(DEFAULT_RPC_URL).toString());
-  assert.equal(c.kuruMarket, null);
-  assert.equal(c.kuruShortMarket, null);
+  assert.equal(c.kuruMarket, DEFAULT_KURU_MARKET);
+  assert.equal(c.kuruShortMarket, DEFAULT_KURU_SHORT_MARKET);
+  assert.equal(DEFAULT_KURU_MARKET.toLowerCase(), "0xe2393d5f15523931e59f340cffebcde30fa7db1a");
+  assert.equal(DEFAULT_KURU_SHORT_MARKET.toLowerCase(), "0xd93db02c88d645e669a3965cd46e72cca137f193");
   assert.equal(c.series.market, SERIES.market);
 });
 
@@ -22,6 +24,7 @@ test("environment feeds config; explicit input wins", () => {
   assert.equal(c.rpcUrl, "https://rpc.example.org/");
   assert.equal(resolveConfig({ env, kuruMarket: "0x4444444444444444444444444444444444444444" }).kuruMarket, "0x4444444444444444444444444444444444444444");
   assert.equal(resolveConfig({ env: { PIRY_KURU_MARKET: "  " } }).kuruMarket, null);
+  assert.equal(resolveConfig({ kuruMarket: "", kuruShortMarket: "" }).kuruShortMarket, null);
 });
 
 test("rejects plaintext non-loopback RPC, bad URLs and bad addresses", () => {

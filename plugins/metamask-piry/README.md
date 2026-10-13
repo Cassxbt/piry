@@ -20,7 +20,7 @@ All commands accept the host flags `--json`, `--format`, `--toon`, `--verbose`.
 
 Sizing: claims = GPU-hours x (upper - lower). With the live band, 500 GPU-hours need 1,000 claims, whose maximum payout is 1,000 USDC. The hedge pays nothing at or below $2.50 and stops growing at $4.50; it is a capped cash-settled hedge, not a reimbursement.
 
-If Kuru has not listed PIRY-L, `hedge` reports `UNAVAILABLE` and sends nothing. With `--allow-mint` it mints pairs instead (1 USDC of collateral per claim), then sells the PIRY-S leg on the PIRY-S Kuru market if one is configured, or sends it to `--short-to`. If neither applies it reports `UNHEDGED_PAIR`: both legs are held and net exposure is flat.
+If no PIRY-L market is configured (for example `PIRY_KURU_MARKET=""`), `hedge` reports `UNAVAILABLE` and sends nothing. With `--allow-mint` it mints pairs instead (1 USDC of collateral per claim), then sells the PIRY-S leg on the PIRY-S Kuru market if one is configured, or sends it to `--short-to`. If neither applies it reports `UNHEDGED_PAIR`: both legs are held and net exposure is flat.
 
 ## Safety model
 
@@ -49,7 +49,7 @@ mm piry quote
 
 Install from the directory, not a tarball. Installing from npm currently fails on some `mm` versions ([template issue 4](https://github.com/MetaMask/agent-wallet-plugin-template/issues/4)), so the demo uses `file:`. To publish, remove `"private": true` first. Give the agent the skill by copying `skills/piry/` into its skills directory.
 
-Configuration (all optional): `PIRY_KURU_MARKET` / `--kuru-market` (PIRY-L/USDC order book, set once Kuru lists it), `PIRY_KURU_SHORT_MARKET` / `--kuru-short-market` (PIRY-S/USDC, for the mint path), `PIRY_RPC_URL`.
+Configuration (all optional; the live Kuru markets are built in): `PIRY_KURU_MARKET` / `--kuru-market` overrides the PIRY-L/USDC order book (default `0xe2393d5f15523931e59f340cffebcde30fa7db1a`), `PIRY_KURU_SHORT_MARKET` / `--kuru-short-market` overrides PIRY-S/USDC (default `0xd93db02c88d645e669a3965cd46e72cca137f193`), `PIRY_RPC_URL` overrides the read RPC. An explicitly empty value disables that market.
 
 ## Real-wallet prerequisites
 
@@ -62,18 +62,18 @@ Configuration (all optional): `PIRY_KURU_MARKET` / `--kuru-market` (PIRY-L/USDC 
      "blockExplorer": "https://testnet.monadscan.com", "rpcTarget": "https://testnet-rpc.monad.xyz" }
    ```
    The plugin maps this failure to `MM_CHAIN_RPC_UNAVAILABLE` with the same hint.
-4. Guard Mode policy: allow network 10143 and allowlist the addresses the hedge touches, and set an outflow limit at or above the cap. See `mm wallet policy template` for the field names. Addresses: Piry market `0xe3Aab2F36601cEC8d217DA5497fC3FE00ed22538`, collateral `0xA402B424f392EAA05DBc8779e4502A1F6A96fEF1`, PIRY-L `0x7D4B1319648B1f2478495Dcce10313Cd045Ef997`, PIRY-S `0xF3ACA854B4e0626CDedd391eC1396DBde6820d48`, Kuru AccountCore `0xdbaaDe7B42c95399bb1E9614D51B5B9e2cf78038`, plus the Kuru order book(s). Anything outside the allowlists pauses for 2FA, which is also a fine demo moment.
+4. Guard Mode policy: allow network 10143 and allowlist the addresses the hedge touches, and set an outflow limit at or above the cap. See `mm wallet policy template` for the field names. Addresses: Piry market `0xe3Aab2F36601cEC8d217DA5497fC3FE00ed22538`, collateral `0xA402B424f392EAA05DBc8779e4502A1F6A96fEF1`, PIRY-L `0x7D4B1319648B1f2478495Dcce10313Cd045Ef997`, PIRY-S `0xF3ACA854B4e0626CDedd391eC1396DBde6820d48`, Kuru AccountCore `0xdbaaDe7B42c95399bb1E9614D51B5B9e2cf78038`, plus the two Kuru order books: PIRY-L/USDC `0xe2393d5f15523931e59f340cffebcde30fa7db1a` and PIRY-S/USDC `0xd93db02c88d645e669a3965cd46e72cca137f193`. Anything outside the allowlists pauses for 2FA, which is also a fine demo moment.
 
 ## Demo script (about 5 minutes)
 
-Setup before recording: steps 1 to 4 above, plugin installed, `PIRY_KURU_MARKET` set if Kuru has listed PIRY-L.
+Setup before recording: steps 1 to 4 above and the plugin installed. The Kuru markets are built in.
 
 | Time | Say and show |
 | --- | --- |
 | 0:00 | "My agent rents H100s at about $3.41 an hour. If that rises, its bill rises." `mm plugins` and `mm piry --help`: the plugin is installed, consent screen showed exactly which commands can submit. |
 | 0:30 | `mm piry quote --gpu-hours 500 --sources`. The on-chain index and the four live sources agree; 500 GPU-hours need 1,000 claims; the scenario table shows the payout rising to the $4.50 cap and what stays uncovered above it. |
 | 1:15 | `mm piry hedge --gpu-hours 500`. Preview only: spend, expected claims, the slippage floor, average price. Nothing sent. |
-| 2:00 | `mm piry hedge --gpu-hours 500 --max-premium 500 --slippage 100`. Show the intents in the Agent Wallet, the 2FA prompt for anything outside the allowlist, then the four steps landing (approve, deposit, swap, withdraw) and `status: HEDGED`. If PIRY-L is not listed yet, show `UNAVAILABLE`, then `--allow-mint` with the PIRY-S market configured. |
+| 2:00 | `mm piry hedge --gpu-hours 500 --max-premium 500 --slippage 100`. Show the intents in the Agent Wallet, the 2FA prompt for anything outside the allowlist, then the four steps landing (approve, deposit, swap, withdraw) and `status: HEDGED`. To show the fallback, set `PIRY_KURU_MARKET=""` to get `UNAVAILABLE`, then re-run with `--allow-mint`, which sells the PIRY-S leg on the built-in PIRY-S market. |
 | 3:15 | Re-run with a cap that is too small: the plugin trims the order to the cap and reports `PARTIAL`; it never exceeds it. |
 | 3:45 | `mm piry position`: claims in wallet and Kuru, value at the mark, covered GPU-hours, countdown. |
 | 4:15 | `mm piry redeem` before settlement: refused with the countdown and the 7-day permissionless fallback. After settlement (or on a fast-demo series) the same command withdraws and redeems above the previewed floor. |
@@ -94,6 +94,7 @@ Layout: `src/commands/piry/*` are thin oclif commands; `src/hedge.ts`, `unwind.t
 ## Limits
 
 - Testnet only, test tokens, unaudited.
-- No Kuru PIRY-L market existed when this was written; the Kuru buy path is tested against a simulator and verified read-only against a live Kuru market of another pair, not executed on a PIRY-L book.
+- The PIRY-L and PIRY-S Kuru markets exist and are the plugin defaults. `mm piry quote` reads the live PIRY-L book (best ask, cost to buy the hedge). The write flows (hedge, unwind, redeem) are tested against a calldata-decoding simulator and have not been submitted through a real Agent Wallet.
 - Real-wallet submission on chain 10143 depends on the host fix above and was not run.
+- Both books are seeded by the Piry team; liquidity is thin and not organic.
 - PIRY-S held inside Kuru is not merged automatically by `unwind`; withdraw it first.

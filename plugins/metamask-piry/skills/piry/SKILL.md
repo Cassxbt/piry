@@ -40,7 +40,7 @@ The wallet needs MON for gas and Kuru test USDC on chain 10143. If a write fails
 3. Preview. `mm piry hedge --gpu-hours <N> --json` sends nothing and shows spend, expected claims, the minimum claims after slippage, and the average price.
 4. Execute with the approved cap. `mm piry hedge --gpu-hours <N> --max-premium <USDC> --slippage 100 --json` (100 bps = 1%, the plugin refuses more than 1000). It approves USDC, deposits into Kuru, swaps with a minimum-out floor, and withdraws the claims to the wallet.
    - `status: HEDGED` means net long claims cover the target. `PARTIAL` means the cap or the order book depth limited it; report the shortfall and ask before doing more.
-   - `UNAVAILABLE` means Kuru has not listed PIRY-L yet. Tell the human; do not mint unless they agree (rule 6).
+   - `UNAVAILABLE` means no PIRY-L Kuru market is configured (the live market is built in, so this only happens if it was disabled). Tell the human; do not mint unless they agree (rule 6).
 5. Monitor. `mm piry position --json` shows claims in the wallet and the Kuru trading balance, value at the mark, covered GPU-hours, and settlement status. A stale mark (over one hour) is flagged.
 6. Close early if asked. `mm piry unwind --json` merges PIRY-L with PIRY-S back into USDC, then sells the rest on Kuru. Use `--min-proceeds <USDC>` to refuse a bad price.
 7. After settlement: `mm piry redeem --json` withdraws from Kuru if needed and redeems with a minimum-payout guard equal to the contract's own preview. If the oracle never delivers, anyone can settle at the band midpoint 7 days after the period ends; `redeem` says when.
@@ -60,5 +60,7 @@ The wallet needs MON for gas and Kuru test USDC on chain 10143. If a write fails
 | `MM_CHAIN_RPC_UNAVAILABLE` | Host cannot reach chain 10143 | See Setup |
 
 ## Configuration
+
+The live Kuru markets are built in (PIRY-L/USDC `0xe2393d5f15523931e59f340cffebcde30fa7db1a`, PIRY-S/USDC `0xd93db02c88d645e669a3965cd46e72cca137f193`); the variables below override them and an empty value disables a market.
 
 `PIRY_KURU_MARKET` / `--kuru-market`: the PIRY-L/USDC order book. `PIRY_KURU_SHORT_MARKET` / `--kuru-short-market`: the PIRY-S/USDC order book, used only to sell the short leg when minting. `PIRY_RPC_URL`: read-only RPC override (https, or loopback http). The plugin verifies each market's base and quote tokens on chain before using it.

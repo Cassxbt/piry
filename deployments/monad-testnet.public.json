@@ -1,0 +1,154 @@
+{
+  "description": "Public deployment record for Piry on Monad testnet. Test tokens only; no secrets. Generated from the ignored local deployment files and on-chain data.",
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "explorer": "https://testnet.monadscan.com",
+  "deployer": "0x66d71a8612Fbf6ab69340Bf82aB431e1Ad30b5c3",
+  "creMockForwarder": "0xB9F79d863261869B234c481D1f9A7af84AeAd192",
+  "liveSeries": {
+    "label": "Piry H100 Composite, settles 2026-10-19 12:00 UTC",
+    "index": "Piry H100 Composite (median of Akash, RunPod, Verda, Shadeform; USD per H100 SXM GPU-hour; 6 decimals)",
+    "deliveryMode": "CRE CLI simulation (--broadcast) through the mock forwarder, operator-gated SimulationSettlementReceiver",
+    "terms": {
+      "priceDecimals": 6,
+      "lower": "2500000",
+      "upper": "4500000",
+      "periodStart": "1791812712",
+      "periodEnd": "1792411200",
+      "maxReportAge": 21600,
+      "fallbackDelay": 604800,
+      "indexId": "0x9045935a4bec0525c20debad5760c11beea989517893e61455710f500efacbf7",
+      "specHash": "0x5e66c087d5d9ec7b89d30f6519bb99a80a73bc7c9fde781a691904832ae7020d"
+    },
+    "contracts": {
+      "collateralKuruTestUSDC": {
+        "address": "0xA402B424f392EAA05DBc8779e4502A1F6A96fEF1"
+      },
+      "simulationSettlementReceiver": {
+        "address": "0x6B15565bFC329edEC5ca2BAE96fB792C0429a3A1",
+        "deployTx": "0x723c31546d9456686425581e433bd7a8321ae163837bcdc9894d94dd9f456dc5",
+        "block": "70409788"
+      },
+      "computeMarket": {
+        "address": "0xe3Aab2F36601cEC8d217DA5497fC3FE00ed22538",
+        "deployTx": "0xd08965787f8faec563ab4d31ebb50884503300dc468fcdb1a0e2bd7a79aa71ce",
+        "block": "70409792"
+      },
+      "piryMarkFeed": {
+        "address": "0xE4B79233F8ac4804BABfD6bd065aA6596b0EbE5e",
+        "deployTx": "0xab2f28d36302d6e1cc68586558fd9daaa44baa990cb25b81c5eef808a412f43f",
+        "block": "70409797"
+      },
+      "piryShortFeed": {
+        "address": "0xd97bd777304bbf14d713c5498951da52d50e2f80",
+        "deployTx": "0x6325878ea606da63fd570c4a1baf6645a199069fa463ea6bb713295ab74094fc"
+      },
+      "longClaimPIRY-L": {
+        "address": "0x7D4B1319648B1f2478495Dcce10313Cd045Ef997"
+      },
+      "shortClaimPIRY-S": {
+        "address": "0xF3ACA854B4e0626CDedd391eC1396DBde6820d48"
+      }
+    }
+  },
+  "kuru": {
+    "version": "V2",
+    "router": "0xf75A7529b83941e001d7D9bc113A73C92112947E",
+    "accountCore": "0xdbaaDe7B42c95399bb1E9614D51B5B9e2cf78038",
+    "markets": {
+      "PIRY-L/USDC": {
+        "address": "0xe2393d5f15523931e59f340cffebcde30fa7db1a",
+        "createTx": "0x36d3b9c38e04892e39dd90ee7e2c5cff81d96f8a8d50916e8a106aa03898c5fb",
+        "block": 70468688
+      },
+      "PIRY-S/USDC": {
+        "address": "0xd93db02c88d645e669a3965cd46e72cca137f193",
+        "createTx": "0x13f5f46ef7cdce9a15d8534449e0f471b6738a49712dc2959e690f42cab9a976",
+        "block": 70468724
+      }
+    },
+    "marketParams": {
+      "sizePrecision": "1 claim",
+      "tickSize": "0.0001",
+      "minNotionalUsdc": "1",
+      "takerFee": "0.07%",
+      "makerFee": "0.04%"
+    },
+    "seeding": {
+      "note": "Team-seeded liquidity from the deployer: 8,000 pairs minted, 5 bids + 5 asks per book, 2 to 6 percent around fair value.",
+      "approveCollateral": "0x2b1077168bbb5d99f617a0e48fdc3490015bba28df5a0ad3749e9a89434af603",
+      "mintPairs8000": "0x8baac09956e177cb73531eea9680b9794497442a468b333ad4b654b9abed254c",
+      "approvePIRY-L": "0x8dd97881f59e2bdb4c711a13cbadfa6c68d04234c29cd99afd77eb868f44a1be",
+      "depositPIRY-L": "0x4f2e58e364245430595925c4fbb83bb4a661ff463a28da0a92a8e7bbae2c9e97",
+      "approvePIRY-S": "0x5bfc96f73cabbd4ff1e4840f49f4f6eb83f5c712d45c109d577fde00364bb16c",
+      "depositPIRY-S": "0x06a202b66e1136a23cc952e9c33ce27a784c2cd3e825c895794cf36f2749a321",
+      "approveUSDC": "0xace763abf5924e4a6aaa20eeb4384b2caad3205108aa522d5750a9c47f3fb389",
+      "depositUSDC11997": "0x078bc07ce02e7d762a381ce20299b017c1df5e819db7f715a15b50cf8d92df14",
+      "postOrdersPIRY-L": "0xb075423c9858c9648e5f97a00c46383ef0229a6aec7d99b49add0c1f51efe6ae",
+      "postOrdersPIRY-S": "0x1d5527f9c3ed7d7d81618fbab30ab89e1c582a82ea56c25b2496efbbc0d81160"
+    }
+  },
+  "fastDemoSeries": {
+    "label": "Fast-demo series: full lifecycle in minutes, synthetic DEMO index",
+    "index": "NVIDIA H100 80GB DEMO, USD/GPU-hour, 6 decimals",
+    "deliveryMode": "CRE CLI simulation (--broadcast) through the mock forwarder, operator-gated SimulationSettlementReceiver",
+    "terms": {
+      "priceDecimals": 6,
+      "lower": "2000000",
+      "upper": "4000000",
+      "periodStart": "1791798853",
+      "periodEnd": "1791799153",
+      "maxReportAge": 300,
+      "fallbackDelay": 604800,
+      "indexId": "0xc4d3fe4c512534f9f122bef9287df54bad47ae35d4e8e5a7e1dd37afa8ed9d60",
+      "specHash": "0xddcbab98d4239deca920f2b907b3f5f7264a1808851f9e48bb05e809575ffbbd"
+    },
+    "contracts": {
+      "collateralPiryTestUSD": {
+        "address": "0xc6aFaF08b17C6Be52eF1927889D068Dc138974E8",
+        "deployTx": "0x364738d393eacfd72b582381b67d1e0e278ba80ff4b2e49169f68ebefe2734bb"
+      },
+      "simulationSettlementReceiver": {
+        "address": "0x43259Ac2952ae1583BDF0DC4756Eb86ec963ee39",
+        "deployTx": "0x22153d373cc6b2c388f11094902df23fa7c914391978f0ac82cad54fd1545233"
+      },
+      "computeMarket": {
+        "address": "0xb71f79e990629aD3d0aB8a3fd2A8F8a21FE0004a",
+        "deployTx": "0xb91b414519427188c0ed30f8fb88dcbab3eea04e7b84cb89aaffe892837390f9"
+      },
+      "piryMarkFeed": {
+        "address": "0x110Daf63811F8F2b50aC01a8Ab85fb9B20ca9624",
+        "deployTx": "0x94fdbef3f0f5a451c6400774f7c83d15abdff30523cdcb1b0c8679297884acb5"
+      },
+      "longClaimPIRY-L": {
+        "address": "0xB883c87091388EAc45ed539820Dc2cc49325Dd18"
+      },
+      "shortClaimPIRY-S": {
+        "address": "0x09D88859E054CA6547Fe12D4C868Ce3671729607"
+      }
+    },
+    "lifecycle": {
+      "mintPairs1000": "0x8c1c5446bf088b10d0b0b7015ed8f04b2879873096255ff6be7b6bde79d6e85d",
+      "markPrePeriodSpot": "0x818bb3d66767f4c47a160e068d934b405e1e6cf9c7b001a11ff1b80993e263a5",
+      "settlement": {
+        "tx": "0x44b935ac592035426b2cf07ecacf53b5c824e731a9b32f3ac3126ae60d718338",
+        "price": "2.658755",
+        "forwarderResult": true,
+        "evidenceHash": "0xdcc0360271a9015678c35c2774f19deaf7f843a36b06c4a9dee46ade945bc4ff"
+      },
+      "settlementReplayRefused": {
+        "tx": "0x66ebd575d1441cadfcfe5a29d9f904c8005ab52081080c7405ca3a0e2f42435d",
+        "forwarderResult": false,
+        "revert": "AlreadySettled"
+      },
+      "redeemLong1000": {
+        "tx": "0x829cf6434f441258da3799bfcdf6ecbe621178bdd3e1f9bc4685e38d8dbe9097",
+        "payout": "329.377500"
+      },
+      "redeemShort1000": {
+        "tx": "0xe693ee80331f3689355fcd8db966af3e5e22404cca6e798069111bdc4e76b84f",
+        "payout": "670.622500"
+      }
+    }
+  }
+}
