@@ -1,7 +1,7 @@
 import { previewRedeemOnchain, readHoldings, readSeries } from "./chain.js";
 import { loadKuru, type Deps } from "./context.js";
 import { PiryError } from "./errors.js";
-import { balanceOf, withdrawTx } from "./kuru.js";
+import { balanceOf, requireFreshPrice, withdrawTx } from "./kuru.js";
 import { fmt, previewRedeem } from "./math.js";
 import { redeemTx, Budget, Run, type StepLog } from "./tx.js";
 
@@ -66,6 +66,8 @@ export async function redeem(deps: Deps, input: RedeemInput): Promise<RedeemResu
     throw new PiryError("PAYOUT_BELOW_MIN", `The payout would be ${fmt(payout, dec)} USDC, below --min-payout ${fmt(minPayout, dec)}. Nothing was sent.`, "Lower --min-payout or check `mm piry position`.");
   }
 
+  if (kuruLong > 0n) await requireFreshPrice(client, config.withdrawalLimiter, longClaim);
+  if (kuruShort > 0n) await requireFreshPrice(client, config.withdrawalLimiter, shortClaim);
   const run = new Run(wallet, new Budget(null), deps.note);
   if (kuruLong > 0n) await run.send("withdraw-long", `Piry: withdraw ${fmt(kuruLong, dec)} PIRY-L from Kuru to redeem`, withdrawTx(config.accountCore, kuru.account.rootId, longClaim, kuruLong, owner));
   if (kuruShort > 0n) await run.send("withdraw-short", `Piry: withdraw ${fmt(kuruShort, dec)} PIRY-S from Kuru to redeem`, withdrawTx(config.accountCore, kuru.account.rootId, shortClaim, kuruShort, owner));

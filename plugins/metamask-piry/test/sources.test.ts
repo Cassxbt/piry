@@ -59,3 +59,9 @@ test("a value outside the sanity bounds is dropped", async () => {
   assert.equal(c.readings.find((r) => r.source === "runpod")?.ok, false);
   assert.equal(c.validSources, 3);
 });
+
+test("toMicro floors past six decimals instead of rejecting, as the workflow does", () => {
+  assert.equal(toMicro("2.7399999999999999999"), 2_739_999n);
+  assert.equal(toMicro("2.1234567890123"), 2_123_456n);
+  assert.throws(() => toMicro("0.0000009"), /zero/);
+});

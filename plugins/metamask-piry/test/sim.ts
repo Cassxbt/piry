@@ -1,7 +1,7 @@
 import { accountCoreAbi, orderBookAbi } from "@toxicflow-labs/ts-sdk/abi";
 import { decodeFunctionData, erc20Abi, type Abi, type Address, type Hex } from "viem";
 import { marketAbi, type Reader } from "../src/chain.js";
-import { resolveConfig, SERIES, KURU_ACCOUNT_CORE, type Config } from "../src/config.js";
+import { resolveConfig, SERIES, KURU_ACCOUNT_CORE, KURU_WITHDRAWAL_LIMITER, type Config } from "../src/config.js";
 import type { Intent, TxReceipt, TxRequest, Wallet } from "../src/tx.js";
 
 export const OWNER: Address = "0x1111111111111111111111111111111111111111";
@@ -36,6 +36,9 @@ export class Sim {
   failWith = "boom";
   previewOffset = 0n;
   markAge = 200n;
+  unverified = new Set<string>();
+  priceStale = false;
+  limiterChecked: string[] = [];
 
   constructor() {
     this.books.set(low(LONG_MARKET), { base: SERIES.longClaim, price: 4_500n, depth: 10_000_000_000n });
@@ -97,7 +100,13 @@ export class Sim {
         if (f === "balanceOf") return this.bal[k]!;
         if (f === "allowance") return this.allowance.get(`${k}:${low(args[0] as string)}:${low(args[1] as string)}`) ?? 0n;
       }
+      if (a === low(KURU_WITHDRAWAL_LIMITER) && f === "requireFreshPrice") {
+        this.limiterChecked.push(low(args[0] as string));
+        if (this.priceStale) throw new Error("The contract function \"requireFreshPrice\" reverted with the following signature: 0x393843a9");
+        return undefined;
+      }
       if (a === low(KURU_ACCOUNT_CORE)) {
+        if (f === "verifiedSpotOrderBook") return !this.unverified.has(low(args[0] as string));
         if (f === "rootAccountIdOf") return this.kuruRoot;
         if (f === "getBalance") return this.kuruRoot === 0n ? 0n : this.kuruBal[this.key(args[1] as Address)]!;
         if (f === "getSpotReservedBalance") return 0n;

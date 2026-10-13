@@ -51,6 +51,9 @@ The wallet needs MON for gas and Kuru test USDC on chain 10143. If a write fails
 | --- | --- | --- |
 | `CAP_EXCEEDED` | A step would pass `--max-premium`; nothing was sent for it | Ask the human; never raise silently |
 | `KURU_MARKET_MISMATCH` | The configured Kuru market is not PIRY-L/USDC | Stop; get the right address |
+| `PRICE_STALE`, `PRICE_CHECK_FAILED` | Kuru's withdrawal limiter says the PIRY price is older than 1800 s (or could not be checked) | Wait a few minutes and retry; nothing was sent |
+| `BELOW_MIN_NOTIONAL` | The buy is under the Kuru market's minimum order size | Ask for more GPU-hours or raise `--max-premium` |
+| `WALLET_NOT_RESOLVED` | The host's selected wallet is not an EVM wallet the plugin can resolve | Select an EVM wallet, then retry |
 | `SERIES_MISMATCH`, `WRONG_CHAIN` | Contracts or RPC differ from what the plugin expects | Stop and report |
 | `SERIES_CLOSED` | Period over or settled | Use `position`, then `redeem` |
 | `INSUFFICIENT_BALANCE` | Not enough USDC | Ask the human to fund; nothing was sent |

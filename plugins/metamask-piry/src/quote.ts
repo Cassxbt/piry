@@ -83,7 +83,7 @@ export async function quote(client: Reader, config: Config, gpuHoursMicro: bigin
 
   if (config.kuruMarket !== null) {
     try {
-      const market = await readMarket(client, config.kuruMarket);
+      const market = await readMarket(client, config.kuruMarket, config.accountCore);
       const issues = marketIssues(market, { base: config.series.longClaim, quote: config.series.collateral });
       if (issues.length > 0) {
         result.kuru = { status: "MISMATCH", market: market.address, note: `Not the PIRY-L/USDC market: ${issues.join("; ")}. Nothing will trade against it.` };

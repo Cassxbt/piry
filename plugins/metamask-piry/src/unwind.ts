@@ -1,7 +1,7 @@
 import { readHoldings, readSeries } from "./chain.js";
 import { loadKuru, type Deps } from "./context.js";
 import { PiryError } from "./errors.js";
-import { balanceOf, withdrawTx } from "./kuru.js";
+import { balanceOf, requireFreshPrice, withdrawTx } from "./kuru.js";
 import { fmt } from "./math.js";
 import { executeSale, planSale, type SalePlan } from "./sell.js";
 import { Budget, Run, mergePairsTx, type StepLog } from "./tx.js";
@@ -74,6 +74,7 @@ export async function unwind(deps: Deps, input: UnwindInput): Promise<UnwindResu
     return { executed: false, requestedClaims: fmt(requested, dec), mergedPairs: "0", soldClaims: "0", expectedProceedsUsdc: "0", longClaimsLeft: fmt(longTotal, dec), steps: [], warnings, next: "Nothing could be unwound." };
   }
 
+  if (kuruLongForMerge > 0n || sell > 0n) await requireFreshPrice(client, config.withdrawalLimiter, longClaim);
   const run = new Run(wallet, new Budget(null), deps.note);
   if (kuruLongForMerge > 0n) {
     await run.send("withdraw-for-merge", `Piry: withdraw ${fmt(kuruLongForMerge, dec)} PIRY-L from Kuru to merge`, withdrawTx(config.accountCore, kuru.account.rootId, longClaim, kuruLongForMerge, owner));

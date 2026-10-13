@@ -1,8 +1,9 @@
 import { accountCoreAbi, orderBookAbi } from "@toxicflow-labs/ts-sdk/abi";
 import { buildDepositToOwnerRequest, buildWithdrawRequest } from "@toxicflow-labs/ts-sdk/account";
 import { buildSwapRequest } from "@toxicflow-labs/ts-sdk/spot";
-import { encodeFunctionData, erc20Abi, type Abi, type Address } from "viem";
+import { encodeFunctionData, erc20Abi, parseAbi, type Abi, type Address } from "viem";
 import { call, type Reader } from "./chain.js";
+import { PiryError } from "./errors.js";
 import type { TxRequest } from "./tx.js";
 
 export interface KuruMarket {
@@ -15,17 +16,19 @@ export interface KuruMarket {
   baseDecimals: number;
   quoteDecimals: number;
   bestAskRaw: bigint | null;
+  verified: boolean;
 }
 
-export async function readMarket(client: Reader, market: Address): Promise<KuruMarket> {
+export async function readMarket(client: Reader, market: Address, accountCore: Address): Promise<KuruMarket> {
   const read = <T>(fn: string, args: readonly unknown[] = []) => call<T>(client, market, orderBookAbi as Abi, fn, args);
-  const [params, book, baseToken, quoteToken, quoteDecimals, state] = await Promise.all([
+  const [params, book, baseToken, quoteToken, quoteDecimals, state, verified] = await Promise.all([
     read<readonly [number, bigint, number, bigint, bigint, bigint, bigint]>("getMarketParams"),
     read<readonly [readonly number[], readonly bigint[], readonly number[], readonly bigint[]]>("getL2Book", [8n]),
     read<Address>("baseToken"),
     read<Address>("quoteToken"),
     read<number>("quoteTokenDecimals"),
     read<number>("marketState"),
+    call<boolean>(client, accountCore, accountCoreAbi as Abi, "verifiedSpotOrderBook", [market]),
   ]);
   const baseDecimals = await call<number>(client, baseToken, erc20Abi, "decimals");
   const [, , askPrices, askSizes] = book;
@@ -41,16 +44,43 @@ export async function readMarket(client: Reader, market: Address): Promise<KuruM
     baseDecimals,
     quoteDecimals: Number(quoteDecimals),
     bestAskRaw,
+    verified,
   };
 }
 
 // Facts the market states about itself, compared with what the plugin expects. Any entry means: do not trade here.
 export function marketIssues(market: KuruMarket, expected: { base: Address; quote: Address }): string[] {
   const issues: string[] = [];
+  if (!market.verified) issues.push("Kuru AccountCore does not list it as a verified spot order book");
   if (market.baseToken.toLowerCase() !== expected.base.toLowerCase()) issues.push(`its base token is ${market.baseToken}, not the PIRY-L claim ${expected.base}`);
   if (market.quoteToken.toLowerCase() !== expected.quote.toLowerCase()) issues.push(`its quote token is ${market.quoteToken}, not ${expected.quote}`);
   if (market.state !== 0) issues.push(`its market state is ${market.state}, not active (0)`);
   return issues;
+}
+
+const limiterAbi = parseAbi(["function requireFreshPrice(address token) view", "error InvalidWithdrawalPrice()"]);
+const INVALID_WITHDRAWAL_PRICE = "0x393843a9";
+
+function revertedWithStalePrice(error: unknown): boolean {
+  for (let e = error as { cause?: unknown } | undefined, depth = 0; e && depth < 8; e = e.cause as typeof e, depth++) {
+    const o = e as { data?: unknown; raw?: unknown; signature?: unknown; errorName?: unknown; message?: unknown };
+    const text = [o.data, o.raw, o.signature, o.errorName, o.message].map((v) => (typeof v === "string" ? v : "")).join(" ");
+    if (text.includes(INVALID_WITHDRAWAL_PRICE) || text.includes("InvalidWithdrawalPrice")) return true;
+  }
+  return false;
+}
+
+// Kuru withdrawals (and so every deposit-trade-withdraw round trip) revert when the token's price is older than the
+// limiter allows. Checking first means the user is never asked to approve a transaction that cannot land.
+export async function requireFreshPrice(client: Reader, limiter: Address, token: Address): Promise<void> {
+  try {
+    await call<void>(client, limiter, limiterAbi as Abi, "requireFreshPrice", [token]);
+  } catch (error) {
+    if (revertedWithStalePrice(error)) {
+      throw new PiryError("PRICE_STALE", `Kuru's withdrawal limiter says the price for ${token} is stale (InvalidWithdrawalPrice), so withdrawals would revert. Nothing was sent.`, "Wait for the price to refresh (a few minutes), then retry.");
+    }
+    throw new PiryError("PRICE_CHECK_FAILED", `Could not confirm Kuru's price is fresh for ${token}: ${error instanceof Error ? error.message.split("\n")[0] : String(error)}`, "Retry shortly. Nothing was sent.");
+  }
 }
 
 export interface SwapEstimate {

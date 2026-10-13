@@ -24,6 +24,8 @@ export const SERIES: Series = {
 
 export const KURU_ACCOUNT_CORE: Address = "0xdbaaDe7B42c95399bb1E9614D51B5B9e2cf78038";
 
+export const KURU_WITHDRAWAL_LIMITER: Address = "0x6d9599d6B9A5Cf601C2cdBc43fF170462B256fe0";
+
 export const DEFAULT_KURU_MARKET: Address = getAddress("0xe2393d5f15523931e59f340cffebcde30fa7db1a");
 export const DEFAULT_KURU_SHORT_MARKET: Address = getAddress("0xd93db02c88d645e669a3965cd46e72cca137f193");
 
@@ -31,6 +33,7 @@ export interface Config {
   rpcUrl: string;
   series: Series;
   accountCore: Address;
+  withdrawalLimiter: Address;
   kuruMarket: Address | null;
   kuruShortMarket: Address | null;
 }
@@ -61,7 +64,7 @@ function checkKuruMarket(raw: string, label: string): Address {
     throw new PiryError("INVALID_CONFIG", `Kuru ${label} market is not a valid address: ${raw}`, "Set the 0x order book address Kuru created for that pair (PIRY_KURU_MARKET / PIRY_KURU_SHORT_MARKET).");
   }
   const market = getAddress(raw);
-  const known = [...Object.values(SERIES), KURU_ACCOUNT_CORE].map((a) => a.toLowerCase());
+  const known = [...Object.values(SERIES), KURU_ACCOUNT_CORE, KURU_WITHDRAWAL_LIMITER].map((a) => a.toLowerCase());
   if (/^0x0{40}$/i.test(raw) || known.includes(market.toLowerCase())) {
     throw new PiryError("INVALID_CONFIG", `Kuru ${label} market cannot be ${market}: it is a Piry or Kuru account contract, not an order book.`, "Use the order book address Kuru created for that pair.");
   }
@@ -85,6 +88,7 @@ export function resolveConfig(input: ConfigInput = {}): Config {
     rpcUrl: checkRpcUrl(rpc),
     series: SERIES,
     accountCore: KURU_ACCOUNT_CORE,
+    withdrawalLimiter: KURU_WITHDRAWAL_LIMITER,
     kuruMarket: market === undefined ? null : checkKuruMarket(market, "PIRY-L"),
     kuruShortMarket: shortMarket === undefined ? null : checkKuruMarket(shortMarket, "PIRY-S"),
   };

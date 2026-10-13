@@ -22,8 +22,8 @@ export interface KuruView {
   account: KuruAccount;
 }
 
-async function verified(client: Reader, address: Address, base: Address, quote: Address, label: string): Promise<KuruMarket> {
-  const market = await readMarket(client, address);
+async function verified(client: Reader, accountCore: Address, address: Address, base: Address, quote: Address, label: string): Promise<KuruMarket> {
+  const market = await readMarket(client, address, accountCore);
   const issues = marketIssues(market, { base, quote });
   if (issues.length > 0) {
     throw new PiryError(
@@ -39,8 +39,8 @@ export async function loadKuru(client: Reader, config: Config, owner: Address): 
   const { collateral, longClaim, shortClaim } = config.series;
   const [account, market, shortMarket] = await Promise.all([
     readAccount(client, config.accountCore, owner, [collateral, longClaim, shortClaim]),
-    config.kuruMarket ? verified(client, config.kuruMarket, longClaim, collateral, "PIRY-L") : null,
-    config.kuruShortMarket ? verified(client, config.kuruShortMarket, shortClaim, collateral, "PIRY-S") : null,
+    config.kuruMarket ? verified(client, config.accountCore, config.kuruMarket, longClaim, collateral, "PIRY-L") : null,
+    config.kuruShortMarket ? verified(client, config.accountCore, config.kuruShortMarket, shortClaim, collateral, "PIRY-S") : null,
   ]);
   return { market, shortMarket, account };
 }

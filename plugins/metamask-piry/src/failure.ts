@@ -32,6 +32,9 @@ export function describeFailure(error: unknown): Failure {
   const completed = error instanceof StepFailed && error.completed.length > 0
     ? " Earlier steps already landed on chain; run `mm piry position` to see where your funds are and do not blindly retry."
     : "";
+  if (/0x393843a9|InvalidWithdrawalPrice/.test(message)) {
+    return { code: "PRICE_STALE", message: `${prefix}${message}`, hint: "Kuru's withdrawal limiter rejected a stale price. Wait a few minutes for it to refresh, check `mm piry position`, then retry." + completed };
+  }
   if (/Invalid chainId/i.test(message)) {
     return { code: "MM_CHAIN_RPC_UNAVAILABLE", message: `${prefix}${message}`, hint: CHAIN_HINT + completed };
   }

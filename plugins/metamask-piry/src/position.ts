@@ -5,7 +5,8 @@ import { balanceOf, readAccount } from "./kuru.js";
 import { fmt, netLong, valueAtMark } from "./math.js";
 import { countdown } from "./redeem.js";
 
-export const MARK_STALE_SECONDS = 3_600n;
+// Kuru's withdrawal limiter rejects prices older than 1800 s; stay well inside that.
+export const MARK_STALE_SECONDS = 1_500n;
 const ONE = 100_000_000n;
 
 export const isoTime = (seconds: bigint): string => new Date(Number(seconds) * 1000).toISOString();

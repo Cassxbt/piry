@@ -2,7 +2,7 @@ import type { Address } from "viem";
 import { readAllowance, readHoldings, readSeries, type Holdings, type SeriesState } from "./chain.js";
 import { SWAP_DEADLINE_SECONDS, loadKuru, type Deps, type KuruView } from "./context.js";
 import { PiryError } from "./errors.js";
-import { balanceOf, depositTx, estimateSwap, readAccount, swapTx, withdrawTx, type KuruMarket, type SwapEstimate } from "./kuru.js";
+import { balanceOf, depositTx, estimateSwap, readAccount, requireFreshPrice, swapTx, withdrawTx, type KuruMarket, type SwapEstimate } from "./kuru.js";
 import { ceilDiv, claimsForGpuHours, fmt, netLong, slippageFloor } from "./math.js";
 import { executeSale, planSale, type SalePlan } from "./sell.js";
 import { Budget, Run, approveTx, mintPairsTx, transferTx, type StepLog } from "./tx.js";
@@ -89,7 +89,7 @@ export async function hedge(deps: Deps, input: HedgeInput): Promise<HedgeResult>
   if (series.settled || series.now >= series.periodEnd) {
     throw new PiryError(
       "SERIES_CLOSED",
-      series.settled ? "The series is already settled; a new hedge cannot be bought." : "The series period has ended and is awaiting settlement; a new hedge cannot be bought.",
+      series.settled ? "Series settled; use redeem. A new hedge cannot be bought." : "The series period has ended and is awaiting settlement; a new hedge cannot be bought.",
       "Use `mm piry position` to see the settlement state, then `mm piry redeem`.",
     );
   }
@@ -140,7 +140,14 @@ async function hedgeOnKuru(deps: Deps, input: HedgeInput, p: Plan, kuru: KuruVie
   const minOut = slippageFloor(expectedOut, input.slippageBps);
   const warnings = [...p.warnings];
   if (!sizing.complete) warnings.push(`Only ${fmt(expectedOut, dec)} of ${fmt(p.need, dec)} claims fit ${input.maxPremium === null ? "the order book depth" : "under the cap or the book depth"}; the hedge will be partial.`);
-  if (amountIn < market.minQuote) warnings.push(`The order is below the market's minimum notional of ${fmt(market.minQuote, qd)} USDC and may revert.`);
+  if (amountIn < market.minQuote) {
+    throw new PiryError(
+      "BELOW_MIN_NOTIONAL",
+      `The order of ${fmt(amountIn, qd)} USDC is below the Kuru market's minimum notional of ${fmt(market.minQuote, qd)} USDC and would revert. Nothing was sent.`,
+      input.maxPremium !== null && input.maxPremium < market.minQuote ? "Raise --max-premium to at least the minimum notional, or ask for more GPU-hours." : "Ask for more GPU-hours so the order clears the minimum notional.",
+    );
+  }
+  await requireFreshPrice(client, config.withdrawalLimiter, longClaim);
 
   const plan = {
     spendUsdc: fmt(amountIn, qd),
@@ -217,6 +224,7 @@ async function hedgeByMint(deps: Deps, input: HedgeInput, p: Plan, kuru: KuruVie
   const shortMarket = input.shortTo ? null : kuru.shortMarket;
   let sale: SalePlan | null = null;
   if (shortMarket && quantity > 0n) {
+    await requireFreshPrice(client, config.withdrawalLimiter, shortClaim);
     sale = await planSale(deps, shortMarket, kuru.account.rootId, quantity, input.slippageBps, null, dec);
     if (sale.amount < quantity) {
       warnings.push(`The PIRY-S book can only absorb ${fmt(sale.amount, dec)} of ${fmt(quantity, dec)}; minting is limited to what can be sold.`);

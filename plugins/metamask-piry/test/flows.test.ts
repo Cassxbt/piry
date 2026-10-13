@@ -302,3 +302,73 @@ test("a wallet answer without a transaction hash is a failed step, not a success
   const run = new Run(wallet, new Budget(null));
   await assert.rejects(run.send("mint", "x", { to: SERIES.market, data: "0x" }), { name: "StepFailed" });
 });
+
+test("a market AccountCore does not verify is refused even when its tokens match", async () => {
+  const sim = new Sim();
+  sim.unverified.add(LONG_MARKET.toLowerCase());
+  const e = await rejects(hedge(deps(sim, { long: true }), input()));
+  assert.equal(e.code, "KURU_MARKET_MISMATCH");
+  assert.match(e.message, /verified spot order book/);
+  assert.equal(sim.sent.length, 0);
+  const q = await quote(sim.reader, sim.config({ long: true }), 100n * U);
+  assert.equal(q.kuru.status, "MISMATCH");
+});
+
+test("a stale Kuru price stops hedge, unwind and redeem before anything is proposed", async () => {
+  const sim = new Sim();
+  sim.priceStale = true;
+  assert.equal((await rejects(hedge(deps(sim, { long: true }), input()))).code, "PRICE_STALE");
+  assert.equal((await rejects(hedge(deps(sim, { long: true }), input({ maxPremium: null })))).code, "PRICE_STALE");
+  sim.bal.long = 50n * U;
+  assert.equal((await rejects(unwind(deps(sim, { long: true }), { claims: null, method: "sell", slippageBps: 100, minProceeds: null }))).code, "PRICE_STALE");
+  sim.settled = true;
+  sim.settlementPrice = 3_500_000n;
+  sim.kuruRoot = 7n;
+  sim.kuruBal.long = 10n * U;
+  assert.equal((await rejects(redeem(deps(sim), { minPayout: null }))).code, "PRICE_STALE");
+  assert.equal(sim.sent.length, 0);
+});
+
+test("a fresh price lets hedge through and the limiter was asked about the claim", async () => {
+  const sim = new Sim();
+  const r = await hedge(deps(sim, { long: true }), input());
+  assert.equal(r.status, "HEDGED");
+  assert.ok(sim.limiterChecked.includes(SERIES.longClaim.toLowerCase()));
+});
+
+test("the limiter's revert selector maps to PRICE_STALE even when it surfaces from the host", () => {
+  assert.equal(describeFailure(new Error("execution reverted: 0x393843a9")).code, "PRICE_STALE");
+});
+
+test("an unreadable limiter fails closed", async () => {
+  const sim = new Sim();
+  const read = sim.reader.readContract;
+  sim.reader = { ...sim.reader, readContract: ((req: { functionName: string }) => (req.functionName === "requireFreshPrice" ? Promise.reject(new Error("rpc down")) : (read as (r: unknown) => unknown)(req))) as never };
+  assert.equal((await rejects(hedge({ client: sim.reader, config: sim.config({ long: true }), wallet: sim.wallet }, input()))).code, "PRICE_CHECK_FAILED");
+  assert.equal(sim.sent.length, 0);
+});
+
+test("an order below the market minimum notional is refused, not warned about", async () => {
+  const sim = new Sim();
+  const e = await rejects(hedge(deps(sim, { long: true }), input({ gpuHoursMicro: 1n * U })));
+  assert.equal(e.code, "BELOW_MIN_NOTIONAL");
+  assert.equal(sim.sent.length, 0);
+});
+
+test("hedge refuses once the series is settled and points to redeem", async () => {
+  const sim = new Sim();
+  sim.settled = true;
+  sim.settlementPrice = 3_500_000n;
+  const e = await rejects(hedge(deps(sim, { long: true }), input({ allowMint: true })));
+  assert.equal(e.code, "SERIES_CLOSED");
+  assert.match(e.message, /Series settled; use redeem/);
+  assert.equal(sim.sent.length, 0);
+});
+
+test("the mark is flagged stale after 1500 seconds, not before", async () => {
+  const sim = new Sim();
+  sim.markAge = 1_400n;
+  assert.doesNotMatch((await position(sim.reader, sim.config(), OWNER)).warnings.join(" "), /stale/);
+  sim.markAge = 1_501n;
+  assert.match((await position(sim.reader, sim.config(), OWNER)).warnings.join(" "), /stale/);
+});

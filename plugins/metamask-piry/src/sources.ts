@@ -40,10 +40,11 @@ const obj = (v: unknown): Record<string, unknown> => {
   return v as Record<string, unknown>;
 };
 
-// Decimal text to micro-USD without going through floating-point multiplication.
+// Decimal text to micro-USD without floating-point multiplication. Digits past 6 decimals are floored, as in the
+// workflow's decimalUnits, so the index shown here cannot differ from the one the workflow publishes.
 export function toMicro(value: unknown): bigint {
   const text = typeof value === "number" ? String(value) : value;
-  if (typeof text !== "string" || !/^(0|[1-9]\d{0,8})(\.\d{1,12})?$/.test(text)) throw new Error("price is not a plain positive decimal");
+  if (typeof text !== "string" || !/^(0|[1-9]\d{0,8})(\.\d+)?$/.test(text)) throw new Error("price is not a plain positive decimal");
   const [whole = "0", fraction = ""] = text.split(".");
   const micro = BigInt(whole) * 10n ** BigInt(DECIMALS) + BigInt(fraction.padEnd(DECIMALS, "0").slice(0, DECIMALS));
   if (micro === 0n) throw new Error("price is zero");
