@@ -54,6 +54,6 @@
     "priceDecimals": 6,
     "periodStart": 1791812712,
     "periodEnd": 1792411200,
-    "maxPublicationAgeSeconds": 21600
+    "maxPublicationAgeSeconds": 86400
   }
 }
