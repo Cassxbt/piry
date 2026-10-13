@@ -95,6 +95,8 @@
 !/deployments/series.composite-h100.example.json
 !/contracts/PiryShortFeed.sol
 !/test/PiryShortFeed.t.sol
+!/scripts/seed-kuru.ts
+!/scripts/seed-kuru.test.ts
 !/plugins/
 /plugins/*
 !/plugins/metamask-piry/
