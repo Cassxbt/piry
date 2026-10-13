@@ -126,6 +126,7 @@ export interface KuruBalance {
 }
 
 export interface KuruAccountView {
+  // Read just before the balances. The SDK's balance calls take no block, so they are not pinned to it.
   block: bigint;
   rootId: bigint;
   balances: KuruBalance[];
@@ -195,18 +196,22 @@ export async function confirmed(pc: PublicClient, hash: Hash): Promise<Transacti
   return receipt;
 }
 
-// Approve (when needed) and deposit into the Kuru trading balance. Returns the deposit hash.
-export async function depositToKuru(s: Session, token: Address, amount: bigint): Promise<Hash> {
+// Approve (when needed) and deposit into the Kuru trading balance. Returns the deposit hash. `guard` throws when the
+// caller's context changed; it runs before each write, including the deposit that follows a confirmed approval.
+export async function depositToKuru(s: Session, token: Address, amount: bigint, guard: () => void = () => {}): Promise<Hash> {
   const allowance = await s.pc.readContract({ address: token, abi: erc20Abi, functionName: "allowance", args: [s.owner, s.accountCore] });
   if (allowance < amount) {
+    guard();
     await confirmed(s.pc, await s.account.approveErc20({ token, spender: s.accountCore, amount }));
   }
+  guard();
   return s.account.depositToOwner({ rootOwner: s.owner, token, amount });
 }
 
-export async function withdrawFromKuru(s: Session, token: Address, amount: bigint): Promise<Hash> {
+export async function withdrawFromKuru(s: Session, token: Address, amount: bigint, guard: () => void = () => {}): Promise<Hash> {
   const rootId = await s.account.getRootAccountId({ rootOwner: s.owner });
   if (rootId === 0n) throw new Error("No Kuru account for this wallet");
+  guard();
   return s.account.withdraw({ rootAccountId: rootId, token, amount, recipient: s.owner });
 }
 

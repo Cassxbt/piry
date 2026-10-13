@@ -66,6 +66,22 @@ export function slippageFloor(amountOut: bigint, bps: number): bigint {
   return (amountOut * BigInt(10_000 - bps)) / 10_000n;
 }
 
+export interface SwapPlan {
+  amountIn: bigint;
+  minAmountOut: bigint;
+  partial: boolean;
+}
+
+// What to submit for a quote. When the book can absorb only part of the entered input, only that part is sent:
+// the output floor is derived from the quote's own output, so it protects the price only for the input it priced.
+export function planSwap(quote: { amountInUsed: bigint; amountOut: bigint }, requestedIn: bigint, bps: number): SwapPlan | null {
+  if (quote.amountInUsed <= 0n || quote.amountOut <= 0n) return null;
+  const minAmountOut = slippageFloor(quote.amountOut, bps);
+  if (minAmountOut <= 0n) return null;
+  const amountIn = quote.amountInUsed < requestedIn ? quote.amountInUsed : requestedIn;
+  return { amountIn, minAmountOut, partial: amountIn < requestedIn };
+}
+
 export interface Level {
   priceRaw: bigint;
   sizeRaw: bigint;

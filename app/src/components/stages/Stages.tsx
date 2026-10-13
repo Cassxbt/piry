@@ -38,7 +38,7 @@ function StageMint() {
         <Tile tone="long" title={`1.00 ${live.market?.claims.longSymbol ?? "PIRY-L"}`} line="long: pays more as the index rises" delay={240} />
         <Tile tone="short" title={`1.00 ${live.market?.claims.shortSymbol ?? "PIRY-S"}`} line="short: pays more as it falls" delay={320} />
       </div>
-      <p className="stage-note">A pair always merges back into exactly the collateral it was minted from, so the two legs together are always worth 1.00.</p>
+      <p className="stage-note">A pair merges back into exactly the collateral it was minted from, so the two marks add up to 1.00. After settlement, redeeming the two legs separately rounds each payout down and can leave a unit of dust.</p>
       {live.market ? <Src contract="ComputeMarket" address={live.subject.contracts.market} block={live.market.block.number} /> : null}
     </div>
   );
@@ -93,7 +93,7 @@ function StageIndex() {
         <span><small>{hypo === null ? "LIVE" : "WHAT-IF"}</small>{hypo === null ? "from the feed" : <button type="button" className="text-btn" onClick={() => setHypo(null)}>reset</button>}</span>
       </div>
       <p className="stage-note">
-        A CRE workflow (run today through the CRE CLI simulation by our keeper) checks the mark every 5 minutes, publishing when the index moves and at least every 20 minutes. {rounds.data?.length ? `${rounds.data.length} round${rounds.data.length > 1 ? "s" : ""} on-chain so far.` : "No rounds yet."} Long = (index - floor) / (cap - floor), clamped to $0 to $1.
+        A CRE workflow (run today through the CRE CLI simulation by our keeper) checks the mark every 5 minutes, publishing when the index moves and at least every 20 minutes (a target; Kuru needs a mark no more than 30 minutes old). {rounds.data?.length ? `${rounds.data.length} round${rounds.data.length > 1 ? "s" : ""} on-chain so far.` : "No rounds yet."} Long = (index - floor) / (cap - floor), clamped to $0 to $1.
       </p>
     </div>
   );

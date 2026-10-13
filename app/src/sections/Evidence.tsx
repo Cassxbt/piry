@@ -7,7 +7,6 @@ import { config } from "../config";
 import type { SeriesSubject } from "../config/types";
 import { useAction } from "../hooks/action";
 import { useChainNow, useClient, useEvidenceFile, useSeriesMarket, useSettlement } from "../hooks/chain";
-import { useWallet } from "../hooks/wallet";
 import { blockLabel, duration, shortAddress, shortHash, usd, utc } from "../lib/format";
 import { DELIVERY } from "../lib/labels";
 import { phaseOf, type MarketSnapshot } from "../lib/reads";
@@ -32,36 +31,40 @@ function Check({ state, children, detail }: { state: "pass" | "fail" | "skip"; c
   );
 }
 
-function EvidencePanel({ subject, snapshot, text, check }: { subject: SeriesSubject; snapshot: MarketSnapshot; text: string; check: EvidenceCheck }) {
+const STATE_CHIP: Record<EvidenceCheck["state"], { tone: "ok" | "bad" | "warn"; label: string }> = {
+  verified: { tone: "ok", label: "Verified in your browser" },
+  failed: { tone: "bad", label: "Verification failed" },
+  unverified: { tone: "warn", label: "Reported but not verified" },
+};
+
+const SOURCE_NAMES: Record<string, string> = { akash: "Akash Console", runpod: "RunPod", shadeform: "Shadeform", verda: "Verda" };
+
+export function EvidencePanel({ subject, snapshot, text, check, url }: { subject: SeriesSubject; snapshot: MarketSnapshot; text: string; check: EvidenceCheck; url: string }) {
   const [raw, setRaw] = useState(false);
   const d = check.dataset;
-  const slots = d ? (d.periodEnd - d.periodStart) / d.slotSeconds : 0;
-  const bound = d !== null && d.indexId.toLowerCase() === snapshot.terms.indexId.toLowerCase() && d.specHash.toLowerCase() === snapshot.terms.specHash.toLowerCase();
-  const periodOk = d !== null && BigInt(d.periodStart) === snapshot.terms.periodStart && BigInt(d.periodEnd) === snapshot.terms.periodEnd;
+  const c = check.composite;
   const pd = snapshot.terms.priceDecimals;
+  const chip = STATE_CHIP[check.state];
 
   return (
     <div className="panel">
       <div className="panel-head">
-        <span className="label">Canonical evidence, verified in your browser</span>
-        {d ? <span className={`chip ${d.mode === "DEMO" ? "warn" : "ok"} plain`}>{d.mode === "DEMO" ? "Synthetic demo data" : d.mode}</span> : null}
+        <span className="label">Canonical evidence, checked in your browser</span>
+        <span className="row">
+          <span className={`chip ${chip.tone} plain`}>{chip.label}</span>
+          {d?.mode === "DEMO" ? <span className="chip warn plain">Synthetic demo data</span> : check.methodology ? <span className="chip plain">{check.methodology}</span> : null}
+        </span>
       </div>
       <div className="panel-pad stack">
         <div className="checks">
-          <Check state={check.hashMatches ? "pass" : "fail"} detail={`file ${shortHash(check.computedHash)} vs chain ${shortHash(snapshot.state.evidenceHash)}`}>
-            keccak256 of the evidence file equals the evidence hash settled on-chain
-          </Check>
-          <Check
-            state={check.priceMatches === null ? "skip" : check.priceMatches ? "pass" : "fail"}
-            detail={check.computedMean !== null ? `mean of ${d?.observations.length} observations = ${check.computedMean.toString()} raw, chain settled at ${snapshot.state.settlementPrice.toString()}` : undefined}
-          >
-            Equal-slot mean, rounded down, reproduces the settled price
-          </Check>
-          <Check state={d === null ? "skip" : bound ? "pass" : "fail"}>Evidence is bound to this series (index ID and spec hash match the market)</Check>
-          <Check state={d === null ? "skip" : periodOk && d.observations.length === slots ? "pass" : "fail"} detail={d ? `${d.observations.length} of ${slots} slots, ${d.slotSeconds}s each` : undefined}>
-            Observations cover the whole period with no gaps
-          </Check>
+          {check.checks.map((item) => (
+            <Check key={item.id} state={item.state} detail={item.detail}>{item.label}</Check>
+          ))}
         </div>
+        {check.state === "unverified" ? (
+          <p className="callout warn">This page cannot re-derive the price from this file. The hash match shows these are the bytes the chain refers to; it does not show where the price came from.</p>
+        ) : null}
+        {check.state === "failed" ? <p className="callout bad">At least one check failed. Do not treat this settlement as verified by this page.</p> : null}
 
         {d ? (
           <>
@@ -72,8 +75,8 @@ function EvidencePanel({ subject, snapshot, text, check }: { subject: SeriesSubj
               <table className="table responsive">
                 <thead><tr><th>Slot start (UTC)</th><th>Observed</th><th className="r">Price</th></tr></thead>
                 <tbody>
-                  {d.observations.slice(0, 12).map((o) => (
-                    <tr key={o.slotStart}>
+                  {d.observations.slice(0, 12).map((o, i) => (
+                    <tr key={`${i}-${o.slotStart}`}>
                       <td className="num" data-label="Slot start">{utc(o.slotStart)}</td>
                       <td className="num" data-label="Observed">{utc(o.observedAt, true)}</td>
                       <td className="r num" data-label="Price">{usd(BigInt(o.price), pd, 4)}</td>
@@ -84,13 +87,33 @@ function EvidencePanel({ subject, snapshot, text, check }: { subject: SeriesSubj
             </div>
             {d.observations.length > 12 ? <p className="sub">First 12 of {d.observations.length} observations. The raw file has them all.</p> : null}
           </>
-        ) : (
-          <p className="callout bad">The evidence file could not be parsed: {check.parseError}</p>
-        )}
+        ) : c ? (
+          <>
+            <div className="table-wrap">
+              <table className="table responsive">
+                <thead><tr><th>Source</th><th className="r">Price (per GPU-hour)</th><th className="r">Count</th></tr></thead>
+                <tbody>
+                  {Object.entries(c.sources).map(([name, entry]) => (
+                    <tr key={name}>
+                      <td data-label="Source">{SOURCE_NAMES[name] ?? name}</td>
+                      <td className="r num" data-label="Price">{entry.ok ? usd(BigInt(entry.value), pd, 4) : `not used: ${entry.reason}`}</td>
+                      <td className="r num" data-label="Count">{entry.ok ? entry.count : "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="sub num">
+              Snapshot time {utc(c.observedAt, true)}. This is the time the workflow recorded when it fetched the sources, not a measurement time published by the providers. Matching the hash proves the bytes, not that the providers' prices were true.
+            </p>
+          </>
+        ) : check.parseError ? (
+          <p className="callout bad">The evidence file could not be read: {check.parseError}</p>
+        ) : null}
 
         <div className="row">
           <button type="button" className="btn secondary small" onClick={() => setRaw((v) => !v)} aria-expanded={raw}>{raw ? "Hide raw JSON" : "Show raw JSON"}</button>
-          <a className="btn secondary small" href={`${subject.evidenceBase}/evidence.json`} download="evidence.json">Download evidence.json</a>
+          <a className="btn secondary small" href={url} download={`${subject.id ?? "live"}-evidence.json`}>Download evidence.json</a>
         </div>
         {raw ? <pre className="json-view" tabIndex={0}>{text}</pre> : null}
       </div>
@@ -124,7 +147,7 @@ function SettlementFacts({ subject, snapshot, record, lookupReason }: { subject:
               )}
               <div className="sub" style={{ marginTop: 6 }}>
                 {fallback
-                  ? "No valid report arrived in time, so the safety valve settled the market at the band midpoint. Anyone could call it; funds were never locked."
+                  ? "No valid report was delivered within the grace period, so the fallback settled the market at the band midpoint. Anyone could call it, the first settlement won, and the midpoint is a fixed split of the band, not a recovered fair price."
                   : delivery
                     ? `${delivery.short}. ${delivery.detail}`
                     : "Delivered by the settlement authority."}
@@ -168,7 +191,6 @@ function SettlementFacts({ subject, snapshot, record, lookupReason }: { subject:
 }
 
 function FallbackAction({ subject, snapshot }: { subject: SeriesSubject; snapshot: MarketSnapshot }) {
-  const wallet = useWallet();
   const pc = useClient();
   const action = useAction();
   const market = useSeriesMarket(subject);
@@ -177,10 +199,9 @@ function FallbackAction({ subject, snapshot }: { subject: SeriesSubject; snapsho
   const open = now !== null && now >= opensAt;
 
   const run = () =>
-    action.run("Fallback settlement", async () => {
-      const account = wallet?.account;
-      if (!wallet || !account) throw new Error("Connect a wallet first");
-      const { request } = await pc.simulateContract({ account, address: snapshot.address, abi: computeMarketAbi, functionName: "settleFallback" });
+    action.run("Fallback settlement", async (op) => {
+      const wallet = await op.wallet();
+      const { request } = await pc.simulateContract({ account: wallet.account, address: snapshot.address, abi: computeMarketAbi, functionName: "settleFallback" });
       return wallet.writeContract(request);
     });
 
@@ -189,7 +210,7 @@ function FallbackAction({ subject, snapshot }: { subject: SeriesSubject; snapsho
       <div className="panel-head"><span className="label">Safety valve</span></div>
       <div className="panel-pad stack">
         <p>
-          If no valid report arrives within {duration(Number(snapshot.terms.fallbackDelay))} of the period end, <strong>anyone</strong> can settle the market at the band midpoint, {usd((snapshot.terms.lower + snapshot.terms.upper) / 2n, snapshot.terms.priceDecimals, 2)}. Funds can never be locked behind a silent oracle.
+          If no valid report arrives within {duration(Number(snapshot.terms.fallbackDelay))} of the period end, <strong>anyone</strong> can settle the market at the band midpoint, {usd((snapshot.terms.lower + snapshot.terms.upper) / 2n, snapshot.terms.priceDecimals, 2)}. Until it opens, a holder of one leg cannot redeem. The first settlement wins, so a ready report can lose the race to the fallback, and the midpoint is a fixed split of the band, not the fair price. That gives a holder on the losing side a reason to stay silent until the window opens.
         </p>
         <p className="sub num">
           {open ? "The window is open." : `Opens ${utc(opensAt)}${now !== null ? `, in ${duration(Number(opensAt - now))}` : ""}.`}
@@ -259,13 +280,13 @@ function SubjectEvidence({ subject }: { subject: SeriesSubject }) {
               <div className="panel-head"><span className="label">Evidence</span></div>
               <div className="panel-pad"><p className="sub">A fallback settlement carries no dataset. The price is defined by the contract as the midpoint of the band, which anyone can verify from the floor and cap.</p></div>
             </div>
-          ) : evidence.data ? (
-            <EvidencePanel subject={subject} snapshot={snapshot} text={evidence.data.text} check={evidence.data.check} />
+          ) : evidence.data?.check ? (
+            <EvidencePanel subject={subject} snapshot={snapshot} text={evidence.data.text} check={evidence.data.check} url={evidence.data.url} />
           ) : evidence.isLoading ? (
             <div className="panel"><div className="panel-pad"><p className="sub">Fetching the evidence file</p></div></div>
           ) : (
-            <Pending title="Evidence file not published">
-              Expected at <span className="mono">{subject.evidenceBase}/evidence.json</span>. The on-chain hash is {shortHash(snapshot.state.evidenceHash)}; once the canonical JSON is served, it is hashed here and compared.
+            <Pending title="Evidence unavailable: file not published">
+              The settlement report carries hash {shortHash(snapshot.state.evidenceHash)}, but the file behind it was not found at <span className="mono">{evidence.data?.url ?? subject.evidenceBase}</span>. Nothing can be verified until it is served, and this page checks again every 30 seconds. Until then the settled price rests on the report alone.
             </Pending>
           )}
           <Rounds subject={subject} snapshot={snapshot} />

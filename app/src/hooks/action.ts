@@ -1,7 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { BaseError, ContractFunctionRevertedError, type Hash } from "viem";
+import { chain } from "../config";
 import { useClient } from "./chain";
+import { INPUTS_CHANGED, resolveWallet, StaleOperationError, useWalletPort, type ConnectedWallet } from "./wallet";
 
 export type ActionState =
   | { phase: "idle" }
@@ -37,35 +39,80 @@ export function describeError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-// Runs one transaction: wallet prompt, confirmation, then refetch everything that may have changed.
-export function useAction() {
+export interface Operation {
+  // Switches the wallet to the app chain when needed and returns a client for the account the operation started with.
+  wallet(): Promise<ConnectedWallet>;
+  // Throws when the account, series or inputs changed since the click. Call it after every await and before each write.
+  guard(): void;
+}
+
+const IDLE: ActionState = { phase: "idle" };
+
+// Runs one operation: wallet prompt, confirmation, then refetch everything that may have changed. `identity` names
+// what the result is about (owner, chain, series, market); `inputs` is what the user typed. A change in either
+// aborts the operation before its next write, and a result is only shown while its identity is still on screen.
+export function useAction(identity = "", inputs = "") {
   const pc = useClient();
   const queryClient = useQueryClient();
-  const [state, setState] = useState<ActionState>({ phase: "idle" });
+  const port = useWalletPort();
+  const [stored, setStored] = useState<{ identity: string; state: ActionState }>({ identity, state: IDLE });
+  const current = useRef({ identity, inputs });
+  current.current = { identity, inputs };
+  const mounted = useRef(true);
+  const inFlight = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const run = useCallback(
-    async (label: string, send: () => Promise<Hash>): Promise<Hash | null> => {
-      setState({ phase: "wallet", label });
+    async (label: string, send: (op: Operation) => Promise<Hash>): Promise<Hash | null> => {
+      if (inFlight.current) return null;
+      inFlight.current = true;
+      const start = current.current;
+      const owner = port.account().address;
+      const show = (state: ActionState) => setStored({ identity: start.identity, state });
+      const op: Operation = {
+        guard() {
+          const liveOwner = port.account().address;
+          if (!mounted.current || current.current.identity !== start.identity) throw new StaleOperationError();
+          if (owner && liveOwner?.toLowerCase() !== owner.toLowerCase()) throw new StaleOperationError();
+          if (current.current.inputs !== start.inputs) throw new StaleOperationError(INPUTS_CHANGED);
+        },
+        async wallet() {
+          const wallet = await resolveWallet(port, chain.id, owner);
+          op.guard();
+          return wallet;
+        },
+      };
+      show({ phase: "wallet", label });
       let hash: Hash | undefined;
       try {
-        hash = await send();
-        setState({ phase: "pending", label, hash });
+        hash = await send(op);
+        show({ phase: "pending", label, hash });
         const receipt = await pc.waitForTransactionReceipt({ hash });
         if (receipt.status !== "success") {
-          setState({ phase: "error", label, hash, message: "Transaction reverted on-chain" });
+          show({ phase: "error", label, hash, message: "Transaction reverted on-chain" });
           return null;
         }
-        setState({ phase: "done", label, hash });
+        show({ phase: "done", label, hash });
         void queryClient.invalidateQueries();
         return hash;
       } catch (error) {
-        setState({ phase: "error", label, message: describeError(error), hash });
+        show({ phase: "error", label, message: describeError(error), hash });
         return null;
+      } finally {
+        inFlight.current = false;
       }
     },
-    [pc, queryClient],
+    [pc, port, queryClient],
   );
 
-  const reset = useCallback(() => setState({ phase: "idle" }), []);
-  return { state, run, reset, busy: state.phase === "wallet" || state.phase === "pending" };
+  const reset = useCallback(() => setStored({ identity: current.current.identity, state: IDLE }), []);
+  const state = stored.identity === identity ? stored.state : IDLE;
+  const busy = stored.state.phase === "wallet" || stored.state.phase === "pending";
+  return { state, run, reset, busy };
 }

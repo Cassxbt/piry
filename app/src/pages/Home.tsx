@@ -18,6 +18,7 @@ import { whyNow } from "../content/whyNow";
 import { useLiveSeries } from "../hooks/live";
 import { usePage } from "../hooks/usePage";
 import { usd, utc } from "../lib/format";
+import { MARK_CADENCE } from "../lib/labels";
 import { trimmed, raw } from "../lib/numbers";
 
 function HeroFacts() {
@@ -45,7 +46,7 @@ function Hero() {
             <span><em>Piry caps the gap.</em></span>
           </h1>
           <p className="hero-lede rise d1">
-            Piry lets a team that rents GPUs lock the rate it will be re-quoted on settlement day. Buy a capped long <Term k="claim" /> on Kuru: if the H100 price index rises above the floor, the claim pays the difference, up to a cap you can see before you trade.
+            Piry lets GPU renters and providers trade fully backed, capped exposure to an H100 rental-price index on Monad, with transparent settlement evidence. A renter buys a capped long <Term k="claim" /> on Kuru: if the index settles above the floor, the claim pays the difference, up to a cap you can see before you trade.
           </p>
           <div className="hero-actions rise d2">
             <SiteLink to="/app" hash="exposure" className="btn">Size your hedge</SiteLink>
@@ -72,8 +73,8 @@ function Steps() {
   const steps = [
     {
       n: "1/3",
-      title: "Lock",
-      text: "If you rent GPUs by the hour, buy long claims sized to your GPU-hours. On settlement day, between the floor and the cap, every dollar the index has risen is paid back to you.",
+      title: "Hedge",
+      text: "If you rent GPUs by the hour, buy long claims sized to your GPU-hours. If the index settles between the floor and the cap, every dollar it has risen above the floor is paid back to you.",
       fact: L !== null && U !== null ? `Live band: $${trimmed(L, 2, 2)} to $${trimmed(U, 2, 2)} per GPU-hour` : "Live band: awaiting the chain",
       to: "/app",
       hash: "exposure",
@@ -91,7 +92,7 @@ function Steps() {
     {
       n: "3/3",
       title: "Settle with Chainlink",
-      text: <>After the period ends, the first valid run of a Chainlink <Term k="CRE" /> workflow (on a full four-source quorum for the first 4 hours, within a 24-hour window) reads four public price sources, takes the median and reports it on-chain. Today the workflow runs through the CRE CLI simulation (one node), driven by our keeper (checked every 5 minutes; published when the index moves, and at least every 20 minutes so Kuru's 30-minute freshness check always passes); production runs the same workflow on a DON with consensus. Long and short are paid from the same collateral, and bad reports are refused on the record.</>,
+      text: <>After the period ends, the first valid run of a Chainlink <Term k="CRE" /> workflow reads four public price sources, takes the median and reports it on-chain. The snapshot is taken when that run executes, up to 24 hours after the period end (the keeper insists on all four sources for the first 4 hours). Today the workflow runs through the CRE CLI simulation (one node), driven by our keeper ({MARK_CADENCE}); production would run the same workflow on a DON with consensus. If no report is delivered, anyone can settle at the band midpoint after 7 days. Long and short are paid from the same collateral, and refused reports found on-chain are listed on the evidence page.</>,
       fact: live.market ? `Next settlement: ${utc(live.market.terms.periodEnd)}` : "Next settlement: awaiting the chain",
       to: "/evidence",
       hash: undefined,
@@ -144,14 +145,14 @@ function Audience() {
       <Reveal delay={0.07} className="aud brackets">
         <p className="mono aud-tag">SHORT</p>
         <h3>GPU owners and lenders</h3>
-        <p>Your income and your collateral are worth less when rental rates fall. The short side pays out as the index falls and earns the premium when rates stay below the cap.</p>
+        <p>Your income and your collateral are worth less when rental rates fall. A short claim pays out as the index falls, so you buy it as the hedge. Whoever sells it is paid up front and takes the other side of the index.</p>
       </Reveal>
     </div>
   );
 }
 
 export default function Home() {
-  usePage("Piry", "Piry lets teams that rent GPUs lock the rate they will be re-quoted on settlement day with capped, fully collateralized claims on a GPU rental price index, traded on Kuru and settled by Chainlink CRE on Monad.");
+  usePage("Piry", "Piry lets GPU renters and providers trade fully backed, capped exposure to an H100 rental-price index on Monad, with transparent settlement evidence. Claims trade on Kuru and are settled by Chainlink CRE.");
   const live = useLiveSeries();
   return (
     <>
@@ -177,7 +178,7 @@ export default function Home() {
           <Reveal delay={0.12}>
             <p className="mono traction-kicker">TRACTION ON KURU</p>
             <TractionTile />
-            <p className="block-link"><SiteLink to="/evidence" className="text-link">Full breakdown, team versus external</SiteLink></p>
+            <p className="block-link"><SiteLink to="/evidence" className="text-link">Full breakdown, team versus unclassified</SiteLink></p>
           </Reveal>
         </div>
       </section>
@@ -185,7 +186,7 @@ export default function Home() {
       <section className="block" aria-labelledby="steps-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="Three steps" index="02" title={<>Lock it, trade it, <em>settle it</em></>} lede="One contract holds the collateral. Everything else is a token you can hold, sell or redeem." id="steps-title" />
+            <BlockHead kicker="Three steps" index="02" title={<>Hedge it, trade it, <em>settle it</em></>} lede="One contract holds the collateral. Everything else is a token you can hold, sell or redeem." id="steps-title" />
           </Reveal>
           <Steps />
         </div>
@@ -198,7 +199,7 @@ export default function Home() {
               kicker="The cap, made visible"
               index="03"
               title={<>See exactly where <em>the hedge stops</em></>}
-              lede="Drag the settlement price. Inside the band the bill stays flat. Below the floor you keep the saving and lose the premium. Above the cap every extra dollar is yours."
+              lede="Drag the settlement price. Inside the band the modelled bill stays flat. Below the floor you keep the saving and lose the premium. Above the cap every extra dollar is unhedged."
               id="cap-title"
             />
           </Reveal>
@@ -213,7 +214,7 @@ export default function Home() {
       <section className="block" aria-labelledby="why-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="Why now" index="04" title={<>Demand is visible, <em>and the exchange products are not live</em></>} lede="Exchange products for GPU rental prices are under review or pending approval, and the prediction markets that do exist pay all or nothing. Every line below links to its source." id="why-title" />
+            <BlockHead kicker="Why now" index="04" title={<>Interest is visible, <em>and the exchange products are not live</em></>} lede="Exchange products for GPU rental prices are under review or pending approval, and the prediction markets that do exist pay all or nothing. Every line below links to its source." id="why-title" />
           </Reveal>
           <WhyNow />
         </div>

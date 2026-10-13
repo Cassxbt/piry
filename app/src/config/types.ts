@@ -104,9 +104,11 @@ export interface NetworkSettings {
   markStaleSeconds: number;
   // PiryFaucet: drips test quote token once per address. Absent where there is no faucet.
   faucet?: Address;
-  // Wallets that count as team test activity on the traction panel; every other wallet is external.
+  // Wallets that count as team test activity on the traction panel; every other wallet is unclassified, which does
+  // not mean independent.
   teamAddresses?: Address[];
-  // First block to scan for trades and pair events: the Piry markets' deployment.
+  teamAddressesAsOf?: string;
+  // First block to scan for trades and pair events: the ComputeMarket's deployment block.
   tractionFromBlock?: number;
   variants?: Record<string, SeriesVariant>;
 }
@@ -119,6 +121,30 @@ export interface DeploymentManifest {
   deployer?: Address;
   series?: { mode?: "simulation" | "strict" };
   contracts?: Record<string, { address?: Address; txHash?: Hex; blockNumber?: string; mock?: boolean }>;
+}
+
+// deployments/<network>.public.json: the tracked, secret-free record of the same deployments. The app builds from it
+// when the ignored local manifests are absent, as in a clean clone.
+export interface PublicContract {
+  address: Address;
+  deployTx?: Hex;
+  block?: string | number;
+}
+
+export interface PublicSeries {
+  settlementMode?: "simulation" | "strict";
+  contracts: Record<string, PublicContract>;
+}
+
+export interface PublicManifest {
+  network: string;
+  chainId: number;
+  deployer?: Address;
+  creMockForwarder?: Address;
+  liveSeries: PublicSeries;
+  fastDemoSeries?: PublicSeries;
+  kuru: { accountCore: Address; markets: Record<string, { address: Address; block?: number }> };
+  faucet: { address: Address };
 }
 
 // One deployed series as the evidence step sees it. The page shows several at once, so nothing in the evidence

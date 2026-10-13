@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { TimingNote } from "../components/live/TimingNote";
 import { Field } from "../components/Field";
 import { ForwardLock } from "../components/live/ForwardLock";
+import { OtherSide } from "../components/live/OtherSide";
 import { ScenarioChart } from "../components/charts/lazy";
 import { Section } from "../components/Section";
 import { Src } from "../components/Src";
 import { config, primarySubject } from "../config";
 import { useMark, useMarket, useSeriesShortMark } from "../hooks/chain";
-import { hedgeBasisNote, useHedgeQuote } from "../hooks/hedgeQuote";
-import { chartDomain, claimsToHold, lockedMonthlyBill, lockedOwnerIncome, maxPayout, outcomeFor, regimeOf, type Exposure, type HedgeSide } from "../lib/hedge";
+import { hedgeBasisNote, useExampleSize, useHedgeQuote } from "../hooks/hedgeQuote";
+import { breakEvenIndex, chartDomain, claimsToHold, lockedMonthlyBill, lockedOwnerIncome, maxPayout, outcomeFor, regimeOf, type Exposure, type HedgeSide } from "../lib/hedge";
 import { fixed, parseAmount, usd } from "../lib/format";
 import { payouts } from "../lib/payout";
 
@@ -32,8 +33,9 @@ export function Calculator() {
 
   const [side, setSide] = useState<HedgeSide>("renter");
   const owner = side === "owner";
-  const [gpus, setGpus] = useState("64");
+  const [gpus, setGpus] = useState("8");
   const [hours, setHours] = useState("720");
+  const [sizeTouched, setSizeTouched] = useState(false);
   const [price, setPrice] = useState("3.00");
   const [illLower, setIllLower] = useState("2.00");
   const [illUpper, setIllUpper] = useState("4.00");
@@ -48,6 +50,14 @@ export function Calculator() {
   useEffect(() => {
     if (!priceTouched && indexPrice !== null && indexPrice > 0n) setPrice((Number(indexPrice) / 10 ** pd).toFixed(2));
   }, [indexPrice, pd, priceTouched]);
+
+  const claimToken = snapshot ? (owner ? snapshot.claims.short : snapshot.claims.long) : undefined;
+  const example = useExampleSize(lower !== null && upper !== null && lower < upper ? { band: { lower, upper }, priceDecimals: pd, collateralDecimals: cd } : null, claimToken, owner ? "short" : "long");
+  useEffect(() => {
+    if (sizeTouched) return;
+    setGpus(example.gpus.toString());
+    setHours(example.hours.toString());
+  }, [example.gpus, example.hours, sizeTouched]);
 
   const g = integerOrNull(gpus, 100_000);
   const h = integerOrNull(hours, 744);
@@ -65,7 +75,7 @@ export function Calculator() {
   const shortMark = useSeriesShortMark(primarySubject);
   const markData = owner ? shortMark.data : mark.data;
   const feedMark = markData?.status === "ok" ? { value: markData.answer, scale: 10n ** 8n } : null;
-  const hedgeQuote = useHedgeQuote(calc ? calc.claims : null, feedMark, cd, owner ? "short" : "long");
+  const hedgeQuote = useHedgeQuote(calc ? calc.claims : null, feedMark, cd, owner ? "short" : "long", claimToken);
   const quote = hedgeQuote && (hedgeQuote.basis !== "mark" || feedMark) ? hedgeQuote : null;
 
   const intrinsic = useMemo(() => (calc && p !== null ? payouts(calc.claims, p, calc.exposure.band)[owner ? "short" : "long"] : 0n), [calc, p, owner]);
@@ -73,7 +83,9 @@ export function Calculator() {
   const manual = parseAmount(manualPremium, 6);
   const claimsWhole = calc ? Number(calc.claims) / 10 ** claimDecimals : 0;
   const premium = quote ? quote.premium : manual !== null && calc ? (calc.claims * manual) / 10n ** 6n : intrinsic;
-  const premiumBasis = quote ? (quote.basis === "book" ? "Kuru asks (live)" : "Kuru asks + feed mark") : manual !== null ? "your assumed price" : "intrinsic reference, not a quote";
+  const premiumBasis = quote
+    ? { book: "Kuru asks, fee included", "book+mark": "Kuru asks, remainder at the feed mark (illustrative)", "book-partial": "Kuru asks (partial)", mark: "feed mark, illustrative" }[quote.basis]
+    : manual !== null ? "your assumed price" : "intrinsic reference, not a quote";
 
   const L = lower !== null ? Number(lower) / 10 ** pd : 0;
   const U = upper !== null ? Number(upper) / 10 ** pd : 1;
@@ -102,6 +114,8 @@ export function Calculator() {
         ] as const);
   const noun = owner ? "income" : "bill";
 
+  const costPerClaim = calc && calc.claims > 0n ? Number(premium) / Number(calc.claims) * 10 ** (claimDecimals - cd) : null;
+  const breakEven = costPerClaim !== null && lower !== null && upper !== null ? breakEvenIndex(owner ? "short" : "long", costPerClaim, { lower: L, upper: U }) : null;
   const scrubRow = row(scrub);
   const regime = lower !== null && upper !== null ? regimeOf(BigInt(Math.round(scrub * 10 ** pd)), { lower, upper }) : "in-band";
 
@@ -127,7 +141,7 @@ export function Calculator() {
       </div>
       {owner ? (
         <p className="sub side-thesis">
-          Worked example: 64 H100s financed, rental income falls if rates drop. GPU-backed lenders &ldquo;hold several billion dollars&rsquo; worth of GPUs on balance sheets with no coherent way to hedge&rdquo; (<a href="https://www.galaxy.com/insights/perspectives/backing-ornn-the-financial-layer-for-compute" target="_blank" rel="noreferrer">Galaxy</a>). Buying short claims (PIRY-S) sized GPU-hours x band width pays when the index settles low.
+          Worked example: financed H100s whose rental income falls if rates drop. GPU-backed lenders &ldquo;hold several billion dollars&rsquo; worth of GPUs on balance sheets with no coherent way to hedge&rdquo; (<a href="https://www.galaxy.com/insights/perspectives/backing-ornn-the-financial-layer-for-compute" target="_blank" rel="noreferrer">Galaxy</a>). Buying short claims (PIRY-S) sized GPU-hours x band width pays when the index settles low.
         </p>
       ) : null}
       <div className="calc">
@@ -137,8 +151,13 @@ export function Calculator() {
             {live ? <Src contract="ComputeMarket" address={snapshot.address} block={snapshot.block.number} /> : <span className="chip warn plain">Illustrative band</span>}
           </div>
           <div className="panel-pad calc-inputs">
-            <Field label={owner ? "GPUs owned or financed" : "GPUs rented"} value={gpus} onChange={setGpus} unit="GPUs" inputMode="numeric" error={g === null ? "Enter a whole number from 1 to 100,000." : null} />
-            <Field label={owner ? "Hours rented out per month" : "Hours per month"} value={hours} onChange={setHours} unit="hours" inputMode="numeric" hint="max 744" error={h === null ? "Enter a whole number from 1 to 744." : null} />
+            <Field label={owner ? "GPUs owned or financed" : "GPUs rented"} value={gpus} onChange={(v) => { setSizeTouched(true); setGpus(v); }} unit="GPUs" inputMode="numeric" error={g === null ? "Enter a whole number from 1 to 100,000." : null} />
+            <Field label={owner ? "Hours rented out per month" : "Hours per month"} value={hours} onChange={(v) => { setSizeTouched(true); setHours(v); }} unit="hours" inputMode="numeric" hint="max 744" error={h === null ? "Enter a whole number from 1 to 744." : null} />
+            {sizeTouched ? (
+              <button type="button" className="btn secondary small" onClick={() => setSizeTouched(false)}>Size from the book</button>
+            ) : (
+              <p className="sub">Starting size: the largest example the visible Kuru book fills in full right now. Change it to size your own exposure.</p>
+            )}
             <Field
               label={owner ? "Current rental price" : "Current price"}
               value={price}
@@ -190,14 +209,22 @@ export function Calculator() {
                 </span>
               </div>
               <div className="result">
-                <span className="label">{quote ? (quote.basis === "book" ? "Cost at current Kuru asks" : "Estimated cost of the full hedge") : "Cost"}</span>
+                <span className="label">{quote ? "Executable now from the Kuru book" : "Cost"}</span>
                 {quote ? (
                   <>
-                    <span className="figure num">{calc ? money(premium) : "-"}</span>
+                    <span className="figure num">{calc ? money(quote.executableCost) : "-"}</span>
                     <span className="cap">
-                      {quote.bestAsk !== null && quote.bestSize !== null ? `Best ask $${quote.bestAsk.toFixed(4)} per claim, ${quote.bestSize.toLocaleString("en-US", { maximumFractionDigits: 0 })} claims at the top. ` : ""}
+                      {quote.filled > 0n
+                        ? `${fixed(quote.filled, claimDecimals, 2)} claims at an average ask of $${(quote.avgAsk ?? 0).toFixed(4)}, plus the ${(quote.takerFeePct ?? 0).toFixed(2)}% taker fee (${usd(quote.fee, cd, 2)}). `
+                        : quote.issues.length > 0 ? "" : "The book cannot fill any of this size now. "}
+                      {quote.bestAsk !== null && quote.bestSize !== null ? `Best ask $${quote.bestAsk.toFixed(4)}, ${quote.bestSize.toLocaleString("en-US", { maximumFractionDigits: 0 })} claims at the top. ` : ""}
                       {hedgeBasisNote(quote, claimDecimals)}
                     </span>
+                    {quote.remainder > 0n ? (
+                      <span className="cap">
+                        <strong>Illustrative remainder:</strong> {fixed(quote.remainder, claimDecimals, 2)} claims at the feed mark would add about {money(quote.remainderCost)}, for a full-hedge figure of {money(quote.premium)}. This is an estimate, not a quote.
+                      </span>
+                    ) : null}
                     {quote.block !== null ? <Src contract="Kuru OrderBook" address={owner ? config.kuru.shortMarket : config.kuru.longMarket} block={quote.block} /> : null}
                   </>
                 ) : (
@@ -217,7 +244,7 @@ export function Calculator() {
               <div className="result">
                 <span className="label">{owner ? "Income held between floor and cap" : "Bill held between floor and cap"}</span>
                 <span className="figure num">{calc ? money(owner ? lockedOwnerIncome(calc.exposure) - premium : lockedMonthlyBill(calc.exposure) + premium) : "-"}</span>
-                <span className="cap">{owner ? `GPUs x hours x $${U.toFixed(2)} less the cost shown above. Applies to any settlement price from $${L.toFixed(2)} to $${U.toFixed(2)}; below $${L.toFixed(2)} income falls with the market.` : `GPUs x hours x $${L.toFixed(2)} plus the cost shown above. Applies to any settlement price from $${L.toFixed(2)} to $${U.toFixed(2)}.`}</span>
+                <span className="cap">{owner ? `GPUs x hours x $${U.toFixed(2)} less the full-hedge cost. Applies to any settlement price from $${L.toFixed(2)} to $${U.toFixed(2)}; below $${L.toFixed(2)} income falls with the market.` : `GPUs x hours x $${L.toFixed(2)} plus the full-hedge cost. Applies to any settlement price from $${L.toFixed(2)} to $${U.toFixed(2)}.`}</span>
               </div>
             </div>
           </div>
@@ -277,8 +304,10 @@ export function Calculator() {
           {calc ? (
             <p className="callout">
               <strong>What this does and does not do.</strong> {owner ? `The short claims pay a share of the index fall between $${U.toFixed(2)} and $${L.toFixed(2)} and nothing below $${L.toFixed(2)}.` : `The claims pay a share of the index move between $${L.toFixed(2)} and $${U.toFixed(2)} and nothing above $${U.toFixed(2)}.`} They hedge the price gap, not your invoice, and they reserve no compute. Total claims in this hedge: {claimsWhole.toLocaleString("en-US", { maximumFractionDigits: 0 })}.
+              {breakEven !== null ? ` At this cost the claims alone break even if the index settles ${owner ? "at or below" : "at or above"} $${breakEven.toFixed(4)}; the hedge's value is the flat region, not a profit.` : ""}
             </p>
           ) : null}
+          {snapshot && lower !== null && upper !== null ? <OtherSide snapshot={snapshot} scrub={scrub} /> : null}
         </div>
         <div className="audience calc-audience">
           <div>
@@ -287,7 +316,7 @@ export function Calculator() {
           </div>
           <div>
             <h4>Who takes the short</h4>
-            <p>GPU owners and lenders hedging the rental value of their compute collateral. They earn the premium when rates stay below the cap.</p>
+            <p>GPU owners and lenders hedging the rental value of their compute collateral buy the short claims and pay the premium. Whoever sells them the short is the one taking the other side of the index.</p>
           </div>
         </div>
       </div>

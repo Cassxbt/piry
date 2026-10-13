@@ -35,8 +35,8 @@ export const whyNow: WhyNowItem[] = [
   },
   {
     fig: "$570k",
-    headline: "Demand exists.",
-    text: "One Polymarket market on H100 rental prices traded about $570k before it closed on 29 April 2026, and Kalshi lists contracts on A100, H100, H200, B200 and RTX 5090 rental prices. Both are binary: they pay all or nothing. Piry's payout scales with the price move inside the band.",
+    headline: "Interest exists.",
+    text: "One Polymarket market on H100 rental prices traded about $570k before it closed on 29 April 2026, and Kalshi lists contracts on A100, H100, H200, B200 and RTX 5090 rental prices. That shows interest in GPU-price markets, not repeat hedging demand. Both are binary: they pay all or nothing. Piry's payout scales with the price move inside the band.",
     sources: [
       { label: "Polymarket: GPU rental prices (H100)", url: "https://polymarket.com/event/what-will-gpu-rental-prices-h100-hit-by-april-30-967" },
       { label: "PokerNews on Kalshi's compute markets, 17 Aug 2026", url: "https://www.pokernews.com/prediction-markets/news/2026/08/kalshi-s-new-ai-compute-markets-explained-52156.htm" },

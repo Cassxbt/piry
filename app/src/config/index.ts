@@ -1,6 +1,7 @@
 import { defineChain, isAddress, type Address, type Chain } from "viem";
 import local from "./local.json";
 import monadTestnet from "./monad-testnet.json";
+import { manifestFrom } from "./deployment";
 import type {
   ContractAddresses,
   DeployedContract,
@@ -8,6 +9,7 @@ import type {
   NetworkConfig,
   NetworkName,
   NetworkSettings,
+  PublicManifest,
   SeriesChoice,
   SeriesSubject,
 } from "./types";
@@ -17,17 +19,18 @@ const settings: Record<NetworkName, NetworkSettings> = {
   local: local as NetworkSettings,
 };
 
-// deployments/<network>.json is written by scripts/deploy.ts. A glob import tolerates files that do not exist yet.
+// deployments/<network>.json is written by scripts/deploy.ts and is not tracked; a clean clone falls back to the
+// tracked deployments/<network>.public.json. A glob import tolerates files that do not exist yet.
 const manifests = import.meta.glob<DeploymentManifest>("../../../deployments/*.json", {
   eager: true,
   import: "default",
 });
 
+const publicManifests = Object.entries(manifests).filter(([path]) => path.endsWith(".public.json"));
+
 function manifestFor(network: NetworkName, chainId: number, variant: string | null): DeploymentManifest | null {
-  const file = variant ? `${network}.${variant}.json` : `${network}.json`;
-  const entry = Object.entries(manifests).find(([path]) => path.endsWith(`/${file}`));
-  const manifest = entry?.[1];
-  return manifest && manifest.status === "complete" && manifest.chainId === chainId ? manifest : null;
+  const pub = publicManifests.find(([path]) => path.endsWith(`/${network}.public.json`))?.[1] as unknown as PublicManifest | undefined;
+  return manifestFrom(manifests, pub, network, chainId, variant);
 }
 
 function pickNetwork(): NetworkName {

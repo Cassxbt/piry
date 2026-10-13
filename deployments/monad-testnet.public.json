@@ -9,6 +9,7 @@
     "label": "Piry H100 Composite, settles 2026-10-19 12:00 UTC",
     "index": "Piry H100 Composite (median of Akash, RunPod, Verda, Shadeform; USD per H100 SXM GPU-hour; 6 decimals)",
     "deliveryMode": "CRE CLI simulation (--broadcast) through the mock forwarder, operator-gated SimulationSettlementReceiver",
+    "settlementMode": "simulation",
     "terms": {
       "priceDecimals": 6,
       "lower": "2500000",
@@ -88,10 +89,16 @@
       "postOrdersPIRY-S": "0x1d5527f9c3ed7d7d81618fbab30ab89e1c582a82ea56c25b2496efbbc0d81160"
     }
   },
+  "faucet": {
+    "description": "PiryFaucet: drips 100 Kuru Test USDC once per address (test token only).",
+    "address": "0x6ee33fc6c23269463b7c824a34fea49acaa0c5d6",
+    "dripPerAddress": "100"
+  },
   "fastDemoSeries": {
     "label": "Fast-demo series: full lifecycle in minutes, synthetic DEMO index",
     "index": "NVIDIA H100 80GB DEMO, USD/GPU-hour, 6 decimals",
     "deliveryMode": "CRE CLI simulation (--broadcast) through the mock forwarder, operator-gated SimulationSettlementReceiver",
+    "settlementMode": "simulation",
     "terms": {
       "priceDecimals": 6,
       "lower": "2000000",
@@ -106,19 +113,23 @@
     "contracts": {
       "collateralPiryTestUSD": {
         "address": "0xc6aFaF08b17C6Be52eF1927889D068Dc138974E8",
-        "deployTx": "0x364738d393eacfd72b582381b67d1e0e278ba80ff4b2e49169f68ebefe2734bb"
+        "deployTx": "0x364738d393eacfd72b582381b67d1e0e278ba80ff4b2e49169f68ebefe2734bb",
+        "block": "70365880"
       },
       "simulationSettlementReceiver": {
         "address": "0x43259Ac2952ae1583BDF0DC4756Eb86ec963ee39",
-        "deployTx": "0x22153d373cc6b2c388f11094902df23fa7c914391978f0ac82cad54fd1545233"
+        "deployTx": "0x22153d373cc6b2c388f11094902df23fa7c914391978f0ac82cad54fd1545233",
+        "block": "70365884"
       },
       "computeMarket": {
         "address": "0xb71f79e990629aD3d0aB8a3fd2A8F8a21FE0004a",
-        "deployTx": "0xb91b414519427188c0ed30f8fb88dcbab3eea04e7b84cb89aaffe892837390f9"
+        "deployTx": "0xb91b414519427188c0ed30f8fb88dcbab3eea04e7b84cb89aaffe892837390f9",
+        "block": "70365888"
       },
       "piryMarkFeed": {
         "address": "0x110Daf63811F8F2b50aC01a8Ab85fb9B20ca9624",
-        "deployTx": "0x94fdbef3f0f5a451c6400774f7c83d15abdff30523cdcb1b0c8679297884acb5"
+        "deployTx": "0x94fdbef3f0f5a451c6400774f7c83d15abdff30523cdcb1b0c8679297884acb5",
+        "block": "70365893"
       },
       "longClaimPIRY-L": {
         "address": "0xB883c87091388EAc45ed539820Dc2cc49325Dd18"

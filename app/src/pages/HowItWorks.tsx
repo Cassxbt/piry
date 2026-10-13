@@ -9,12 +9,13 @@ import { SiteLink } from "../components/site/SiteLink";
 import { Pending } from "../components/Pending";
 import { Src } from "../components/Src";
 import { config } from "../config";
-import { hedgeBasisNote, useHedgeQuote } from "../hooks/hedgeQuote";
+import { hedgeBasisNote, useExampleSize, useHedgeQuote } from "../hooks/hedgeQuote";
 import { liveSubject, useLiveSeries } from "../hooks/live";
 import { useMedia } from "../hooks/useMedia";
 import { usePage } from "../hooks/usePage";
 import { claimsToHold, lockedMonthlyBill, maxPayout, outcomeAt, type Exposure } from "../lib/hedge";
 import { duration, fixed, usd, utc } from "../lib/format";
+import { MARK_CADENCE } from "../lib/labels";
 import { raw, trimmed } from "../lib/numbers";
 
 const STEPS = [
@@ -30,17 +31,17 @@ const STEPS = [
   },
   {
     title: "The index moves",
-    text: "A Chainlink CRE workflow reads four public H100 prices, takes the median and publishes a mark (checked every 5 minutes; published when the index moves, and at least every 20 minutes so Kuru's 30-minute freshness check always passes): the feed's value for one long claim, (index - floor) / (cap - floor), always between $0 and $1. The workflow is run today through the CRE CLI simulation (one node) by our keeper; production runs the same workflow on a DON with consensus. The mark is what Kuru's custody reads; trading prices come from the order book.",
+    text: `A Chainlink CRE workflow reads four public H100 prices, takes the median and publishes a mark (${MARK_CADENCE}): the feed's value for one long claim, (index - floor) / (cap - floor), always between $0 and $1. The workflow is run today through the CRE CLI simulation (one node) by our keeper; production runs the same workflow on a DON with consensus. The mark is what Kuru's custody reads; trading prices come from the order book.`,
     link: { to: "/index", hash: undefined, label: "The composite index" },
   },
   {
     title: "CRE settles",
-    text: "Settlement is the first valid workflow run after the period ends, on a full four-source quorum for the first 4 hours, within a 24-hour window; it sends one report. The market accepts a report once, and only if it matches the chain, index, spec and period and is fresh. Stale, replayed, wrong-chain and wrong-sender reports are refused, on the record. If no valid report arrives within seven days, anyone can settle at the band midpoint.",
+    text: "Settlement fixes the price from the first valid workflow run after the period ends. The snapshot is taken when that run executes, up to 24 hours after the period end (workflow configuration); the keeper insists on all four sources for the first 4 hours. The contract's separate 6-hour limit is the report's age at delivery, not how long after the period end it may be taken. The market accepts one report, only if it matches the chain, index, spec and period. Stale, replayed, wrong-chain and wrong-sender reports are refused, and the ones found on-chain are on the ledger. If no valid report arrives within seven days, anyone can settle at the band midpoint.",
     link: { to: "/evidence", hash: undefined, label: "The refusal ledger" },
   },
   {
     title: "Redeem",
-    text: "Burn your claims and receive collateral: the long gets the share of the band the index climbed, the short gets the rest. Preview the amount first and set a minimum payout, so the transaction reverts if it is not what you expect.",
+    text: "Burn your claims and receive collateral: the long gets the share of the band the index climbed, the short gets the rest. Preview the amount first and set a minimum payout, so the transaction reverts if it is not what you expect. Merging a pair is exact; redeeming the two legs separately rounds each payout down, so a matched pair can leave a unit of dust.",
     link: { to: "/app", hash: "redeem", label: "Redeem in the app" },
   },
 ] as const;
@@ -92,19 +93,18 @@ function Explainer() {
   );
 }
 
-const GPUS = 64n;
-const HOURS = 720n;
-
 function WorkedExample() {
   const live = useLiveSeries();
+  const claimToken = live.market?.claims.long;
+  const example = useExampleSize(live.band && live.market ? { band: live.band, priceDecimals: live.pd, collateralDecimals: live.market.collateral.decimals } : null, claimToken);
   const model = useMemo(() => {
     if (!live.market || !live.band || live.index === null || live.long === null) return null;
-    const exposure: Exposure = { gpus: GPUS, hours: HOURS, band: live.band, priceDecimals: live.pd, collateralDecimals: live.market.collateral.decimals };
+    const exposure: Exposure = { gpus: example.gpus, hours: example.hours, band: live.band, priceDecimals: live.pd, collateralDecimals: live.market.collateral.decimals };
     const claims = claimsToHold(exposure);
     return { exposure, claims };
-  }, [live.market, live.band, live.index, live.long, live.pd]);
+  }, [live.market, live.band, live.index, live.long, live.pd, example.gpus, example.hours]);
   const feedMark = useMemo(() => (live.long !== null ? { value: live.long, scale: live.longScale } : null), [live.long, live.longScale]);
-  const quote = useHedgeQuote(model ? model.claims : null, feedMark, live.market?.collateral.decimals ?? 6);
+  const quote = useHedgeQuote(model ? model.claims : null, feedMark, live.market?.collateral.decimals ?? 6, "long", claimToken);
 
   if (!model || !quote || !live.market || !live.band || live.index === null || live.long === null) {
     return <Pending title="Waiting for the live series">The worked example uses the live band and the feed&rsquo;s current mark.</Pending>;
@@ -126,11 +126,11 @@ function WorkedExample() {
       <ol className="worked-math">
         <li>
           <span className="mono">1</span>
-          <p>Your exposure: <strong>{GPUS.toString()} GPUs for {HOURS.toString()} hours</strong> a month is <strong>{(GPUS * HOURS).toLocaleString("en-US")} GPU-hours</strong>. This is an example input; the app takes yours.</p>
+          <p>Your exposure: <strong>{example.gpus.toString()} GPUs for {example.hours.toString()} hours</strong> a month is <strong>{(example.gpus * example.hours).toLocaleString("en-US")} GPU-hours</strong>. This is an example input, sized to what the long book can fill in full right now; the app takes yours.</p>
         </li>
         <li>
           <span className="mono">2</span>
-          <p>The live band runs from <strong>${trimmed(L, 2, 2)}</strong> to <strong>${trimmed(U, 2, 2)}</strong>, so it is <strong>${trimmed(W, 2, 2)}</strong> wide. Hedge size is GPU-hours of exposure x band width: {(GPUS * HOURS).toLocaleString("en-US")} x ${trimmed(W, 2, 2)} = <strong>{fixed(model.claims, live.market.claims.decimals, 0)} claims</strong>, each paying up to $1.</p>
+          <p>The live band runs from <strong>${trimmed(L, 2, 2)}</strong> to <strong>${trimmed(U, 2, 2)}</strong>, so it is <strong>${trimmed(W, 2, 2)}</strong> wide. Hedge size is GPU-hours of exposure x band width: {(example.gpus * example.hours).toLocaleString("en-US")} x ${trimmed(W, 2, 2)} = <strong>{fixed(model.claims, live.market.claims.decimals, 0)} claims</strong>, each paying up to $1.</p>
         </li>
         <li>
           <span className="mono">3</span>
@@ -138,7 +138,7 @@ function WorkedExample() {
         </li>
         <li>
           <span className="mono">4</span>
-          <p>Between the floor and the cap your all-in bill, re-priced at the settlement-day rate, is held at about <strong>{money(lockedMonthlyBill(model.exposure) + premium)}</strong>: your GPU-hours at the floor, plus the premium. The most the claims can ever pay is <strong>{money(maxPayout(model.claims))}</strong>.</p>
+          <p>Between the floor and the cap the hedge holds the modelled bill, re-priced at the settlement-day rate, at about <strong>{money(lockedMonthlyBill(model.exposure) + premium)}</strong>: your GPU-hours at the floor, plus the premium. That level can sit above or below today&rsquo;s bill; the note under the cards shows by how much. The most the claims can ever pay is <strong>{money(maxPayout(model.claims))}</strong>.</p>
         </li>
       </ol>
       <div className="scenarios scenarios--cards">
@@ -171,10 +171,10 @@ function Fallback() {
     <div className="fallback brackets">
       <div>
         <p className="mono fb-tag">SAFETY VALVE</p>
-        <h3>Funds can never be locked behind a silent oracle</h3>
+        <h3>A silent oracle holds payouts for a grace period, then a fallback can settle</h3>
         <p>
-          If no valid report arrives within {t ? duration(Number(t.fallbackDelay)) : "seven days"} of the period end, anyone can settle the market at the band midpoint
-          {t ? `, ${usd((t.lower + t.upper) / 2n, live.pd, 2)} here` : ""}. The fallback has its own event, <span className="mono">SettledByFallback</span>, and its own label on the evidence page, so it can never pass for an oracle report. A settled market also pays out a holder who only ever held one leg.
+          Until the market settles, a holder of a single leg cannot redeem it (a matched pair can still be merged). If no valid report arrives within {t ? duration(Number(t.fallbackDelay)) : "seven days"} of the period end, anyone can call the fallback and settle at the band midpoint
+          {t ? `, ${usd((t.lower + t.upper) / 2n, live.pd, 2)} here` : ""}. The first settlement wins: a valid report that is ready can lose the race to the fallback. The midpoint is a fixed split of the band, not a recovery of the fair price, and it can favour a holder who would have been paid less. That gives a holder on the losing side of the index a reason to stay silent until the fallback opens; the incentive is disclosed here, not removed. The fallback has its own event, <span className="mono">SettledByFallback</span>, and its own label on the evidence page, so it never passes for an oracle report. A settled market also pays out a holder who only ever held one leg.
         </p>
         {t ? <p className="sub num">The window opens {utc(t.periodEnd + t.fallbackDelay)}.</p> : null}
       </div>
@@ -206,7 +206,7 @@ export default function HowItWorks() {
       <section className="block" aria-labelledby="worked-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="Worked example" index="A" title={<>Real numbers, <em>live band</em></>} lede={`The band and the mark are read from ${config.chain.name} right now. Only the 64 GPUs and 720 hours are an example.`} id="worked-title" />
+            <BlockHead kicker="Worked example" index="A" title={<>Real numbers, <em>live band</em></>} lede={`The band and the mark are read from ${config.chain.name} right now. Only the GPU count and hours are an example, sized to what the long book can fill in full right now.`} id="worked-title" />
           </Reveal>
           <Reveal delay={0.05}><WorkedExample /></Reveal>
           <TimingNote periodEnd={live.market?.terms.periodEnd} />
@@ -225,9 +225,10 @@ export default function HowItWorks() {
           </Reveal>
           <ul className="honest-list">
             {[
-              ["It is capped.", "Above the cap the claims pay nothing more. Every extra dollar of GPU price is yours, and the chart above shows exactly where that starts."],
+              ["It is capped.", "Above the cap the claims pay nothing more. Every extra dollar of GPU price is unhedged, and the chart above shows exactly where that starts."],
               ["It costs a premium.", "If prices fall, you keep the cheaper GPUs but lose what you paid for the claims. A hedge that cannot lose money would not be a hedge."],
               ["It hedges a price, not an invoice.", "The claims settle against an index of public prices. Your own provider's bill can differ from it, and nothing is reimbursed."],
+              ["It settles on one snapshot.", "The index is a snapshot of catalogue prices taken when settlement executes, not an average of your month. It does not lock a monthly compute bill."],
               ["It cannot be liquidated.", "Claims are fully collateralized, with no margin and no liquidation. The most you can lose is the premium you paid."],
             ].map(([head, body], i) => (
               <li key={head}>
@@ -244,7 +245,7 @@ export default function HowItWorks() {
       <section className="block" aria-labelledby="fallback-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="Failure mode" index="C" title={<>If the oracle goes quiet, <em>the market still settles</em></>} id="fallback-title" />
+            <BlockHead kicker="Failure mode" index="C" title={<>If the oracle goes quiet, <em>a fallback settles it after seven days</em></>} id="fallback-title" />
           </Reveal>
           <Reveal delay={0.05}><Fallback /></Reveal>
         </div>

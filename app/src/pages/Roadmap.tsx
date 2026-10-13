@@ -36,10 +36,10 @@ export default function Roadmap() {
           </Reveal>
           <ol className="milestones">
             <Milestone i={0} phase={demoDone ? "done" : "next"} when="12 Oct 2026" title="A full lifecycle on Monad testnet, with refusals">
-              Contracts, a CRE workflow, a mark feed and this app are live. A five-minute demo series settled, its evidence verifies in your browser, and a replayed report and a bad dataset were refused on the record.
+              Contracts, a CRE workflow, a mark feed and this app are live. A five-minute demo series settled, its synthetic evidence checks in your browser, and a replayed report and a bad dataset were refused on the record.
             </Milestone>
             <Milestone i={1} phase={liveDone ? "done" : "next"} when={settleWhen} title="The live series settles">
-              The composite-index series has a real period and a real snapshot. When it settles, its report, its evidence and any refusals appear on the evidence page, readable by anyone.
+              The composite-index series has a real period and a real snapshot. When it settles, its report and any refusals found on-chain appear on the evidence page. Its evidence file is checked in your browser once the keeper publishes it, and shows as unavailable until then.
             </Milestone>
             <Milestone i={2} phase={kuruListed ? "done" : "next"} when={kuruListed ? "Live on Monad testnet" : "Pending Kuru"} title="PIRY-L / USDC and PIRY-S / USDC on Kuru">
               {kuruListed
@@ -50,7 +50,7 @@ export default function Roadmap() {
               Move from the simulation forwarder and its operator wallet to the DON-signed forwarder with a receiver pinned to the workflow ID. The strict receiver is written and tested; it is not deployed.
             </Milestone>
             <Milestone i={4} phase="later" when="After the first live series" title="Monthly average-price (TWAP) series">
-              A series that settles on the average of the composite across the whole month, which matches a month of hourly billing. The live series settles on one reading (the first valid run after the period ends), so it hedges the rate you will be re-quoted on settlement day.
+              A series that settles on the average of the composite across the whole month, which matches a month of hourly billing. The live series settles on one snapshot, taken when the first valid run after the period ends executes, so it does not lock a monthly bill.
             </Milestone>
             <Milestone i={5} phase="later" when="Before any real funds" title="A licensed index">
               Replace public endpoints with a licensed feed under a written agreement, and run both side by side for a full series so holders can see the difference first.
@@ -70,7 +70,7 @@ export default function Roadmap() {
           <ol className="plan-list">
             {[
               ["Seed both sides from collateral", "Today this is done: the resting liquidity on both books is the team's seeded orders, 10 per market. Mint pairs and quote both legs from one balance sheet: long asks and short bids around the mark. Inventory comes from collateral, not from borrowing, so seeding needs capital but no leverage."],
-              ["Anchor quotes to the feed", "Quote around the PiryMarkFeed value, so a first buyer sees a price that is close to fair and a maker can tell when it has moved. The feed is checked every 5 minutes and published when the index moves, and at least every 20 minutes."],
+              ["Anchor quotes to the feed", "Quote around the PiryMarkFeed value, so a first buyer sees a price that is close to fair and a maker can tell when it has moved. The keeper checks the feed every 5 minutes and publishes when the index moves, and at least every 20 minutes (a target, not a guarantee)."],
               ["Maker incentives", "Design them with Kuru. Its book already has maker fees and application fees to start from; no incentive is designed or promised yet."],
               ["Recruit the short side", "GPU owners and lenders are the natural short. No partner is signed. The first conversations with them are the milestone that matters most."],
               ["Roll the series", "Run successive periods so exposure can be rolled, and keep a short fast series for demonstrations."],
@@ -96,7 +96,8 @@ export default function Roadmap() {
               ["Testnet only", "Everything runs on Monad testnet with test collateral. No real funds are involved, and none should be."],
               ["Cash-settled, nothing delivered", "Claims settle in collateral against a price index. They are not insurance, they do not guarantee reimbursement of any invoice, and no compute is reserved or delivered."],
               ["Not audited", "The contracts are tested but not independently audited. Read the code before trusting a number."],
-              ["Operator trust today", "Reports are delivered by one operator wallet through the CRE simulation forwarder. Production delivery removes that trust, and is on the list above."],
+              ["Operator trust today", "Reports are delivered by one operator wallet through the CRE simulation forwarder, and the receiver checks the transaction origin against that wallet. The operator must therefore never call an untrusted contract. Production delivery removes that trust, and is on the list above."],
+              ["Silent oracle", "If no valid report arrives, claims wait through a seven-day grace period, after which anyone can settle at the band midpoint. First settlement wins, the midpoint is not the fair price, and a holder on the losing side has a reason to stay silent until then."],
               ["Data terms", "Public endpoints are read without agreements. A mainnet index needs a licensed source."],
               ["Regulation", "A derivative on a price index needs legal review wherever it is offered. That review is a precondition for mainnet, not an afterthought."],
             ].map(([head, body], i) => (

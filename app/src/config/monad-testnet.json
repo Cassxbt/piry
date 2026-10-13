@@ -19,7 +19,7 @@
   },
   "settlement": {
     "source": "Chainlink CRE workflow",
-    "markCadence": "checked every 5 minutes; published when the index moves, and at least every 20 minutes so Kuru's 30-minute freshness check always passes"
+    "markCadence": "checked every 5 minutes; published when the index moves, and at least every 20 minutes (Kuru's claim deposits and withdrawals need a price no more than 30 minutes old; the observed age is shown next to the mark)"
   },
   "series": {
     "name": "H100 live",
@@ -106,9 +106,17 @@
     "0xFD8B4f4Ff64b65d50CFF602dc777D4775F626Bc4",
     "0xf45FFBb292248d90b74567e885317795c1c34a93",
     "0x2C0825cF79619002F740317C77f2A68C0eFcf588",
-    "0x2254B8cA2629821da4BE4834c4491C07bD71F51A"
+    "0x2254B8cA2629821da4BE4834c4491C07bD71F51A",
+    "0x8a9b8d5c25F182fda610E5fe8c7276ECd69E9d3A",
+    "0xCf82e5491BE3DAE0a93e43b7085a23D96C58be9F",
+    "0x30627D981A566ABd5130561bbbd28BaD87f113FF",
+    "0xD4E1410661CC5EFb0df72Edc6df1365436C5058D",
+    "0xCf330e9d8aabf8a923E38614e8156e19B2aDFEBB",
+    "0x02F0DB1D96C059Ce27444fe45aEDb12ae12B157c",
+    "0xf4E13c8738BDA7a90175a8EbD5262a4b93C46968"
   ],
-  "tractionFromBlock": 70515000,
+  "teamAddressesAsOf": "13 Oct 2026",
+  "tractionFromBlock": 70409792,
   "evidenceBase": "/evidence/monad-testnet",
   "markStaleSeconds": 1500,
   "variants": {

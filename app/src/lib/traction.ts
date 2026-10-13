@@ -49,6 +49,8 @@ export interface Bucket {
   fills: number;
   wallets: number;
   volume: number;
+  // False when a positive fill could not be priced because its market's scale was unavailable: volume is a lower bound.
+  volumeComplete: boolean;
   minted: number;
   merged: number;
   redeemed: number;
@@ -56,27 +58,35 @@ export interface Bucket {
 
 export interface Traction {
   team: Bucket;
-  external: Bucket;
+  unclassified: Bucket;
 }
 
-const emptyBucket = (): Bucket => ({ trades: 0, fills: 0, wallets: 0, volume: 0, minted: 0, merged: 0, redeemed: 0 });
+const emptyBucket = (): Bucket => ({ trades: 0, fills: 0, wallets: 0, volume: 0, volumeComplete: true, minted: 0, merged: 0, redeemed: 0 });
 
-// Team = any address in the configured list; external = every other wallet. A trade is classified by the wallet that took.
+const isFill = (fill: Fill) => fill.price > 0n && fill.size > 0n;
+
+// Team = any address in the configured list; unclassified = every other wallet, which is not evidence of an independent
+// user. A trade is a taker order with at least one positive fill, classified by the wallet that took.
 // Volume is in quote tokens (USDC), summed over fills at each fill's own price.
 export function summarizeTraction(logs: TractionLogs, team: readonly Address[], scales: Record<string, MarketScale>): Traction {
   const teamSet = new Set(team.map((a) => a.toLowerCase()));
-  const result: Traction = { team: emptyBucket(), external: emptyBucket() };
-  const wallets = { team: new Set<string>(), external: new Set<string>() };
-  const pick = (address: Address) => (teamSet.has(address.toLowerCase()) ? "team" : "external") as keyof Traction;
+  const result: Traction = { team: emptyBucket(), unclassified: emptyBucket() };
+  const wallets = { team: new Set<string>(), unclassified: new Set<string>() };
+  const pick = (address: Address) => (teamSet.has(address.toLowerCase()) ? "team" : "unclassified") as keyof Traction;
   for (const trade of logs.trades) {
+    const fills = trade.fills.filter(isFill);
+    if (fills.length === 0) continue;
     const side = pick(trade.executor);
     const bucket = result[side];
     bucket.trades += 1;
-    bucket.fills += trade.fills.length;
+    bucket.fills += fills.length;
     wallets[side].add(trade.executor.toLowerCase());
     const scale = scales[trade.market.toLowerCase()];
-    if (!scale) continue;
-    for (const fill of trade.fills) bucket.volume += Number(quoteNotional(fill.price, fill.size, scale)) / 10 ** scale.quoteDecimals;
+    if (!scale) {
+      bucket.volumeComplete = false;
+      continue;
+    }
+    for (const fill of fills) bucket.volume += Number(quoteNotional(fill.price, fill.size, scale)) / 10 ** scale.quoteDecimals;
   }
   for (const pair of logs.pairs) {
     const side = pick(pair.account);
@@ -84,7 +94,7 @@ export function summarizeTraction(logs: TractionLogs, team: readonly Address[], 
     wallets[side].add(pair.account.toLowerCase());
   }
   result.team.wallets = wallets.team.size;
-  result.external.wallets = wallets.external.size;
+  result.unclassified.wallets = wallets.unclassified.size;
   return result;
 }
 

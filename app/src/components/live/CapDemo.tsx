@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { hedgeBasisNote, useHedgeQuote } from "../../hooks/hedgeQuote";
+import { hedgeBasisNote, useExampleSize, useHedgeQuote } from "../../hooks/hedgeQuote";
 import { liveSubject, useLiveSeries } from "../../hooks/live";
 import { chartDomain, claimsToHold, lockedMonthlyBill, maxPayout, outcomeAt, regimeOf, type Exposure } from "../../lib/hedge";
 import { fixed, usd } from "../../lib/format";
@@ -9,22 +9,21 @@ import { ScenarioChart } from "../charts/lazy";
 import { Pending } from "../Pending";
 import { Src } from "../Src";
 
-const GPUS = 64n;
-const HOURS = 720n;
-
-// The cap, drawn honestly: an example team (64 GPUs, 720 hours) against the live series' real band, priced at the
-// feed's long mark. It is an example input, not a quote; the app page has the full calculator.
+// The cap, drawn honestly: a small example team sized to what the long book can fill in full right now, against the live
+// series' real band. It is an example input, not a quote; the app page has the full calculator.
 export function CapDemo() {
   const live = useLiveSeries();
   const [scrub, setScrub] = useState<number | null>(null);
+  const claimToken = live.market?.claims.long;
+  const example = useExampleSize(live.band && live.market ? { band: live.band, priceDecimals: live.pd, collateralDecimals: live.market.collateral.decimals } : null, claimToken);
   const model = useMemo(() => {
     if (!live.market || !live.band || live.index === null || live.long === null) return null;
-    const exposure: Exposure = { gpus: GPUS, hours: HOURS, band: live.band, priceDecimals: live.pd, collateralDecimals: live.market.collateral.decimals };
+    const exposure: Exposure = { gpus: example.gpus, hours: example.hours, band: live.band, priceDecimals: live.pd, collateralDecimals: live.market.collateral.decimals };
     const claims = claimsToHold(exposure);
     return { exposure, claims };
-  }, [live.market, live.band, live.index, live.long, live.pd]);
+  }, [live.market, live.band, live.index, live.long, live.pd, example.gpus, example.hours]);
   const feedMark = useMemo(() => (live.long !== null ? { value: live.long, scale: live.longScale } : null), [live.long, live.longScale]);
-  const quote = useHedgeQuote(model ? model.claims : null, feedMark, live.market?.collateral.decimals ?? 6);
+  const quote = useHedgeQuote(model ? model.claims : null, feedMark, live.market?.collateral.decimals ?? 6, "long", claimToken);
 
   if (!model || !quote || !live.market || !live.band || live.index === null) {
     return <Pending title="Waiting for the live series">The cap chart needs the band and the current index from the chain.</Pending>;
@@ -51,14 +50,14 @@ export function CapDemo() {
         </p>
       </div>
       <dl className="cap-facts">
-        <div><dt>Example team</dt><dd>{GPUS.toString()} GPUs, {HOURS.toString()} hours a month = {(GPUS * HOURS).toLocaleString("en-US")} GPU-hours</dd></div>
+        <div><dt>Example team</dt><dd>{example.gpus.toString()} GPUs, {example.hours.toString()} hours a month = {(example.gpus * example.hours).toLocaleString("en-US")} GPU-hours</dd></div>
         <div><dt>Claims to hold</dt><dd className="num">{fixed(model.claims, live.market.claims.decimals, 0)}</dd></div>
-        <div><dt>Estimated cost</dt><dd className="num">{money(premium)}</dd></div>
+        <div><dt>{quote.remainder === 0n ? "Cost at current Kuru asks" : "Estimated cost"}</dt><dd className="num">{money(premium)}</dd></div>
         <div><dt>Maximum payout</dt><dd className="num">{money(maxPayout(model.claims))}</dd></div>
-        <div><dt>Bill held between ${trimmed(L, 2, 2)} and ${trimmed(U, 2, 2)}</dt><dd className="num">{money(lockedMonthlyBill(model.exposure) + premium)}</dd></div>
+        <div><dt>Modelled bill between ${trimmed(L, 2, 2)} and ${trimmed(U, 2, 2)}</dt><dd className="num">{money(lockedMonthlyBill(model.exposure) + premium)}</dd></div>
       </dl>
       <p className="sub">
-        Hedge size = GPU-hours of exposure x band width: {(GPUS * HOURS).toLocaleString("en-US")} x ${trimmed(U - L, 2, 2)} = {fixed(model.claims, live.market.claims.decimals, 0)} claims, each paying up to $1. {hedgeBasisNote(quote, live.market.claims.decimals)} An example input, not a quote.
+        Hedge size = GPU-hours of exposure x band width: {(example.gpus * example.hours).toLocaleString("en-US")} x ${trimmed(U - L, 2, 2)} = {fixed(model.claims, live.market.claims.decimals, 0)} claims, each paying up to $1. {hedgeBasisNote(quote, live.market.claims.decimals)} The example is sized to the visible long asks; an example input, not a quote.
       </p>
       <ForwardLock exposure={model.exposure} claims={model.claims} premium={premium} today={today} />
       <Src contract="ComputeMarket" address={liveSubject.contracts.market} block={live.market.block.number} />

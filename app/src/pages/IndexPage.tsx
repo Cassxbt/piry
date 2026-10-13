@@ -11,6 +11,7 @@ import { liveSubject, useLiveSeries } from "../hooks/live";
 import { usePage } from "../hooks/usePage";
 import { medianOfValid } from "../lib/indexSources";
 import { shortHash } from "../lib/format";
+import { MARK_CADENCE } from "../lib/labels";
 import { raw, trimmed } from "../lib/numbers";
 
 const FAILURES = [
@@ -109,12 +110,12 @@ export default function IndexPage() {
           </Reveal>
           <div className="rule-grid">
             {[
-              ["Per-source reading", "Each source is read by its own CRE call. Today that is the CRE CLI simulation, one node, run by our keeper (checked every 5 minutes; published when the index moves, and at least every 20 minutes so Kuru's 30-minute freshness check always passes). In production the same workflow runs on a DON, whose nodes reach consensus on each source by taking the median of what they saw. One noisy source cannot sink the others."],
+              ["Per-source reading", `Each source is read by its own CRE call. Today that is the CRE CLI simulation, one node, run by our keeper (${MARK_CADENCE}). In production the same workflow would run on a DON, whose nodes reach consensus on each source by taking the median of what they saw. One noisy source cannot sink the others.`],
               ["Sanity bounds", source.bounds ? `A value outside $${source.bounds.min} to $${source.bounds.max} per GPU-hour is treated as a failure and does not count. Prices inside the bounds are not otherwise screened.` : "Values are bounds-checked before they count."],
-              ["Quorum", `The index is published only if at least ${source.minValid ?? 3} of ${components.length} sources are valid. With fewer, no report is built, and the market waits for a good one or for the fallback.`],
+              ["Quorum", `The index is published only if at least ${source.minValid ?? 3} of ${components.length} sources are valid. This counts how many catalogues returned an acceptable price (some require a minimum number of providers or clouds behind it), not capacity that can actually be rented. With fewer, no report is built, and the market waits for a good one or for the fallback.`],
               ["The median", "With three valid sources it is the middle value. With four it is the mean of the two middle values, rounded down: with four sources the median averages the middle two, so if one source drops the index can move materially. That is why settlement waits for all four sources first."],
               ["Failures are recorded", "A failed source is written into the evidence with a fixed reason code, never free text, so the record shows which source failed and why."],
-              ["One reading at the end", "Settlement is the first valid run after the period ends: it needs a full four-source quorum for the first 4 hours, within a 24-hour window. A report is refused once it is older than the market's maximum report age."],
+              ["One reading at the end", "Settlement is the first valid run after the period ends. The snapshot is taken when that run executes, up to 24 hours after the period end (workflow configuration), and the keeper insists on all four sources for the first 4 hours. The market separately refuses a report that is more than its 6-hour maximum report age old when delivered. Each timestamp is the time the workflow fetched the sources, not a measurement time published by the providers."],
             ].map(([head, body], i) => (
               <Reveal key={head} delay={(i % 3) * 0.05} className="rule-card">
                 <h3>{head}</h3>

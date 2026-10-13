@@ -12,7 +12,8 @@ const MAX_REQUESTS = 400;
 
 export interface TractionResult {
   data: Traction | undefined;
-  // Block the scan reached going backwards; above the start block means the history is partial.
+  // Blocks actually scanned. reached above the configured start block means older history was not read.
+  range: { reached: bigint; latest: bigint; start: bigint } | null;
   partial: boolean;
   via: string | null;
   isLoading: boolean;
@@ -34,7 +35,7 @@ export function useTraction(): TractionResult {
       const { result, source } = await withLogFallback(logSources(pc), (s) =>
         scanTraction(s, { markets, computeMarket: market as Address, fromBlock: from, toBlock: latest, maxRequests: MAX_REQUESTS }),
       );
-      return { logs: result, via: source.name, partial: result.reachedBlock > from };
+      return { logs: result, via: source.name, partial: result.reachedBlock > from, range: { reached: result.reachedBlock, latest, start: from } };
     },
     enabled: market !== null,
     staleTime: 60_000,
@@ -50,5 +51,5 @@ export function useTraction(): TractionResult {
     return summarizeTraction(scan.data.logs, config.teamAddresses ?? [], scales);
   }, [scan.data, longBook, shortBook]);
 
-  return { data, partial: scan.data?.partial ?? false, via: scan.data?.via ?? null, isLoading: scan.isLoading, isError: scan.isError };
+  return { data, range: scan.data?.range ?? null, partial: scan.data?.partial ?? false, via: scan.data?.via ?? null, isLoading: scan.isLoading, isError: scan.isError };
 }

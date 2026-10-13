@@ -21,7 +21,11 @@ const series = flag("series", "");
 
 const repo = new URL("../../", import.meta.url).pathname;
 const appDir = new URL("../", import.meta.url).pathname;
-const deployment = JSON.parse(await readFile(join(repo, "deployments", series ? `${network}.${series}.json` : `${network}.json`), "utf8")) as { chainId: number };
+// A clean clone has only the tracked public record, which carries the same chain id.
+const manifest = (name: string) => readFile(join(repo, "deployments", name), "utf8");
+const deployment = JSON.parse(
+  await manifest(series ? `${network}.${series}.json` : `${network}.json`).catch(() => manifest(`${network}.public.json`)),
+) as { chainId: number };
 const config = JSON.parse(await readFile(join(appDir, "src", "config", `${network}.json`), "utf8")) as { chain: { rpcUrl: string } };
 const workflowConfig = JSON.parse(await readFile(join(repo, flag("config", "workflow/config.testnet.json")), "utf8")) as { terms: IndexTerms };
 const terms = workflowConfig.terms;

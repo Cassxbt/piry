@@ -141,7 +141,7 @@ export default function BuiltOn() {
         facts={<MonadFacts />}
       >
         <ul className="plain-list">
-          <li><strong>Marks kept fresh.</strong> The index is {MARK_CADENCE}. The price an exchange sees is never hours old.</li>
+          <li><strong>Marks kept fresh, as a target.</strong> The index is {MARK_CADENCE}. If the keeper or a source fails, the mark ages; the age of the latest mark is shown in the app and Kuru will refuse claim deposits and withdrawals once it passes 30 minutes.</li>
           <li><strong>An on-chain book.</strong> Kuru&rsquo;s order book runs as contracts on the same chain as the claims, so a fill and a redemption are the same kind of event.</li>
           <li><strong>Settlement is a transaction.</strong> The report, the check and the payout all happen on-chain, in blocks you can read.</li>
         </ul>
@@ -172,9 +172,9 @@ export default function BuiltOn() {
         facts={<CreFacts />}
       >
         <ul className="plain-list">
-          <li><strong>Four external APIs.</strong> Akash, RunPod, Verda and Shadeform, each read with its own call, then reduced to a median. The CRE workflow is run today through the CRE CLI simulation (one node) by our keeper ({MARK_CADENCE}); production runs the same workflow on a DON, whose nodes reach consensus on each reading.</li>
-          <li><strong>A report the contract can check.</strong> The report names its chain, market, index, spec and period, and the market refuses anything that does not match, is stale, or arrives twice.</li>
-          <li><strong>Refusals are part of the product.</strong> Each refused report is on the evidence page, because the forwarder reports success even when the receiver reverts, so the app reads events instead of a status.</li>
+          <li><strong>Four external APIs.</strong> Akash, RunPod, Verda and Shadeform, each read with its own call, then reduced to a median. The CRE workflow is run today through the CRE CLI simulation (one node) by our keeper ({MARK_CADENCE}); production would run the same workflow on a DON, whose nodes reach consensus on each reading. The quorum counts how many catalogues returned a price, not capacity that can actually be rented, and each timestamp is the time the workflow fetched the source, not when the provider measured it.</li>
+          <li><strong>A report the contract can check.</strong> The report names its chain, market, index, spec and period, and the market refuses anything that does not match, is more than 6 hours old when delivered, or arrives twice. The snapshot inside the report is taken when the workflow executes, up to 24 hours after the period end.</li>
+          <li><strong>Refusals are part of the product.</strong> Refused reports found in the scanned block range, plus pinned records, are on the evidence page, because the forwarder reports success even when the receiver reverts, so the app reads events instead of a status.</li>
         </ul>
       </Band>
 

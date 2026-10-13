@@ -39,7 +39,7 @@ export default function About() {
           <h2 className="sr-only" id="story-title">Why Piry exists</h2>
           <div className="about-copy">
             <Reveal>
-              <p>I trade perps, and I have been liquidated on positions that were right a week later. That taught me the rule Piry is built on: a hedge that can liquidate you mid-month isn&rsquo;t a hedge. So Piry has no leverage, no margin calls and no liquidation. The most you can lose is what you paid.</p>
+              <p>I trade perps, and I have been liquidated on positions that were right a week later. That taught me the rule Piry is built on: a hedge that can liquidate you mid-month isn&rsquo;t a hedge. So Piry has no leverage, no margin calls and no liquidation. A hedger can lose at most the premium paid.</p>
             </Reveal>
             <Reveal delay={0.04}>
               <p>I&rsquo;m also Piry&rsquo;s first user. I run autonomous agents and nodes around the clock — a self-hosted multi-agent stack and an AI video pipeline — and pay a floating compute bill every month across OpenRouter, Hugging Face, Vast.ai and DigitalOcean. That bill runs $65 to $100 a month, and it swung enough that I started hunting for cheaper providers just to keep it flat. Switching providers is not a hedge: when GPU rates move, my costs move, and there is nothing I can buy to fix it. CME&rsquo;s GPU futures are stuck in regulatory review and sized for institutions (730 GPU-hours a contract). Piry is the hedge I wanted: small, fully collateralized, settled by Chainlink, traded on Kuru.</p>

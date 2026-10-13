@@ -3,12 +3,11 @@ import { erc20Abi } from "viem";
 import { ActionButton, TxStatus } from "../../components/Action";
 import { Field } from "../../components/Field";
 import { Src } from "../../components/Src";
-import { config } from "../../config";
+import { chain, config } from "../../config";
 import { computeMarketAbi } from "../../abi";
 import { useAction } from "../../hooks/action";
 import { useClient, useChainNow, useHolder, useMarket } from "../../hooks/chain";
 import { useViewer } from "../../hooks/viewer";
-import { useWallet } from "../../hooks/wallet";
 import { fixed, parseAmount } from "../../lib/format";
 import { confirmed } from "../../lib/kuru";
 import type { MarketSnapshot } from "../../lib/reads";
@@ -18,10 +17,9 @@ export function MintCard({ snapshot }: { snapshot: MarketSnapshot }) {
   const market = useMarket();
   const holder = useHolder(snapshot, viewer.address);
   const now = useChainNow(snapshot, market.dataUpdatedAt);
-  const wallet = useWallet();
   const pc = useClient();
-  const action = useAction();
   const [amount, setAmount] = useState("100");
+  const action = useAction([viewer.address, chain.id, snapshot.address].join("|"), amount);
 
   const { symbol, decimals } = snapshot.collateral;
   const isKuruToken = snapshot.collateral.address.toLowerCase() === config.kuru.quoteToken.toLowerCase();
@@ -34,14 +32,18 @@ export function MintCard({ snapshot }: { snapshot: MarketSnapshot }) {
   const error = quantity === null || quantity === 0n ? "Enter an amount." : short ? `More than your ${symbol} balance.` : null;
 
   const mint = () =>
-    action.run("Mint", async () => {
-      const account = wallet?.account;
-      if (!wallet || !account || quantity === null) throw new Error("Connect a wallet first");
+    action.run("Mint", async (op) => {
+      if (quantity === null) throw new Error("Enter an amount.");
+      const wallet = await op.wallet();
+      const account = wallet.account;
       if (allowance < quantity) {
         const approve = await pc.simulateContract({ account, address: snapshot.collateral.address, abi: erc20Abi, functionName: "approve", args: [snapshot.address, quantity] });
+        op.guard();
         await confirmed(pc, await wallet.writeContract(approve.request));
+        op.guard();
       }
       const mintRequest = await pc.simulateContract({ account, address: snapshot.address, abi: computeMarketAbi, functionName: "mintPairs", args: [quantity] });
+      op.guard();
       return wallet.writeContract(mintRequest.request);
     });
 

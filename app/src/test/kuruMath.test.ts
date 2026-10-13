@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { baseAtoms, checkLimitOrder, precisionDecimals, quoteNotional, sizeFromBaseAtoms, slippageFloor, toPriceRaw, toSizeRaw } from "../lib/kuruMath";
+import { baseAtoms, checkLimitOrder, planSwap, precisionDecimals, quoteNotional, sizeFromBaseAtoms, slippageFloor, toPriceRaw, toSizeRaw } from "../lib/kuruMath";
 
 // MON/USDC from the testnet deployment page: price precision 1e6, size precision 1e6, tick 1, min 10 USDC.
 const mon = {
@@ -112,5 +112,28 @@ describe("priceText", () => {
 
   it("uses the market precision for coarse markets", () => {
     expect(priceText(300_000n, weth)).toBe("3000.00");
+  });
+});
+
+describe("planSwap", () => {
+  it("caps the input to what the quote actually used and bases the floor on that amount", () => {
+    const plan = planSwap({ amountInUsed: 10_000_000n, amountOut: 20_000_000n }, 100_000_000n, 50);
+    expect(plan).toEqual({ amountIn: 10_000_000n, minAmountOut: 19_900_000n, partial: true });
+  });
+
+  it("sends the whole input when the book can take all of it", () => {
+    const plan = planSwap({ amountInUsed: 100_000_000n, amountOut: 200_000_000n }, 100_000_000n, 100);
+    expect(plan).toEqual({ amountIn: 100_000_000n, minAmountOut: 198_000_000n, partial: false });
+  });
+
+  it("handles the sell direction the same way: only the claims the book can absorb are sent", () => {
+    const plan = planSwap({ amountInUsed: 30_000_000n, amountOut: 15_000_000n }, 100_000_000n, 50);
+    expect(plan).toEqual({ amountIn: 30_000_000n, minAmountOut: 14_925_000n, partial: true });
+  });
+
+  it("refuses a quote that uses nothing, returns nothing or rounds its floor to zero", () => {
+    expect(planSwap({ amountInUsed: 0n, amountOut: 5n }, 100n, 50)).toBeNull();
+    expect(planSwap({ amountInUsed: 10n, amountOut: 0n }, 100n, 50)).toBeNull();
+    expect(planSwap({ amountInUsed: 10n, amountOut: 1n }, 100n, 50)).toBeNull();
   });
 });

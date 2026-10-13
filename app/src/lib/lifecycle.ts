@@ -46,13 +46,15 @@ export async function proveTransaction(pc: PublicClient, ctx: LedgerContext, has
   const at = (log: Log, address: Address | null) => address !== null && log.address.toLowerCase() === address.toLowerCase();
   const events: string[] = [];
   const redemptions: Redemption[] = [];
-  let forwarderResult: boolean | null = null;
+  // The forwarder serves every series, so only deliveries to this series' own receiver or feed count.
+  const own = [ctx.settlementReceiver, ctx.feed].filter((a): a is Address => a !== null).map((a) => a.toLowerCase());
+  const results: boolean[] = [];
 
   for (const log of receipt.logs) {
     if (at(log, ctx.forwarder)) {
       const p = parseEventLogs({ abi: [reportProcessedEvent], logs: [log], strict: false })[0];
-      if (p) {
-        forwarderResult = p.args.result ?? null;
+      if (p && own.includes((p.args.receiver ?? "").toLowerCase())) {
+        results.push(p.args.result === true);
         events.push(`ReportProcessed(result=${String(p.args.result)})`);
       }
     } else if (at(log, ctx.market)) {
@@ -69,5 +71,7 @@ export async function proveTransaction(pc: PublicClient, ctx: LedgerContext, has
       for (const e of parseEventLogs({ abi: [...settlementReceiverAbi, ...simulationReceiverAbi], logs: [log], strict: false })) events.push(e.eventName as string);
     }
   }
+  // One refused delivery makes the transaction a refusal, whatever else it carried.
+  const forwarderResult = results.length === 0 ? null : results.every(Boolean);
   return { hash, status: receipt.status, blockNumber: receipt.blockNumber, timestamp: block.timestamp, events, redemptions, forwarderResult };
 }

@@ -1,12 +1,11 @@
 import { useState } from "react";
 import type { Address } from "viem";
 import { piryFaucetAbi } from "../abi";
-import { config, explorer } from "../config";
+import { chain, config, explorer } from "../config";
 import { useAction, type ActionState } from "../hooks/action";
 import { useClient } from "../hooks/chain";
 import { useFaucet } from "../hooks/faucet";
 import { useViewer } from "../hooks/viewer";
-import { useWallet } from "../hooks/wallet";
 import { fixed } from "../lib/format";
 import { faucetStatus, type FaucetStatus } from "../lib/faucet";
 import { ActionButton, TxStatus } from "./Action";
@@ -59,22 +58,22 @@ export function FaucetCardView({ amount, faucetBalance, status, action, button, 
 export function FaucetCard() {
   const faucet = config.faucet;
   const viewer = useViewer();
-  const wallet = useWallet();
   const pc = useClient();
-  const action = useAction();
-  const [sent, setSent] = useState(false);
+  const key = `${viewer.address}|${chain.id}|${faucet}`;
+  const action = useAction(key);
+  const [sentKey, setSentKey] = useState<string | null>(null);
   const read = useFaucet(viewer.connected ? viewer.address : undefined);
   if (!faucet) return null;
 
-  const status = faucetStatus({ connected: viewer.connected, claimed: sent || read.data?.claimed, faucetBalance: read.data?.balance, amount: read.data?.amount });
+  const status = faucetStatus({ connected: viewer.connected, claimed: sentKey === key || read.data?.claimed, faucetBalance: read.data?.balance, amount: read.data?.amount });
   const drip = async () => {
-    const hash = await action.run("Drip", async () => {
-      const account = wallet?.account;
-      if (!wallet || !account) throw new Error("Connect a wallet first");
-      const { request } = await pc.simulateContract({ account, address: faucet, abi: piryFaucetAbi, functionName: "drip" });
+    const hash = await action.run("Drip", async (op) => {
+      const wallet = await op.wallet();
+      const { request } = await pc.simulateContract({ account: wallet.account, address: faucet, abi: piryFaucetAbi, functionName: "drip" });
+      op.guard();
       return wallet.writeContract(request);
     });
-    if (hash) setSent(true);
+    if (hash) setSentKey(key);
   };
 
   return (

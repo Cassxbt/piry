@@ -50,7 +50,7 @@ function EvidenceLink() {
             <div>
               <p className="mono kicker-line"><i className="sq" aria-hidden />5/6 SETTLEMENT EVIDENCE</p>
               <h2 className="block-title" id="evidence-link-title">What settled it, and what the system <em>refused</em></h2>
-              <p className="lede">The accepted report and every refused one sit on one ledger, rebuilt from on-chain events. It has its own page.</p>
+              <p className="lede">The accepted report and the refused reports found in the scanned block range (plus pinned records) sit on one ledger, rebuilt from on-chain events. It has its own page.</p>
             </div>
             <SiteLink to="/evidence" className="btn">Open the evidence ledger</SiteLink>
           </div>

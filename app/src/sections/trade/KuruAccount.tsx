@@ -3,14 +3,13 @@ import type { Address } from "viem";
 import { ActionButton, TxStatus } from "../../components/Action";
 import { Field } from "../../components/Field";
 import { Src } from "../../components/Src";
-import { config } from "../../config";
+import { chain, config } from "../../config";
 import { useAction } from "../../hooks/action";
 import { useClient } from "../../hooks/chain";
-import { useMarkFreshness } from "../../hooks/markFreshness";
+import { claimExitOpen, useMarkFreshness } from "../../hooks/markFreshness";
 import { kuruMarketFor, useKuruAccount, useOpenOrders, useWalletTokens, type KuruSide } from "../../hooks/kuru";
 import { useViewer } from "../../hooks/viewer";
-import { useWallet } from "../../hooks/wallet";
-import { duration, fixed, parseAmount } from "../../lib/format";
+import { blockLabel, duration, fixed, parseAmount } from "../../lib/format";
 import { cancelSlots, depositToKuru, openSession, withdrawFromKuru } from "../../lib/kuru";
 import type { MarketSnapshot } from "../../lib/reads";
 
@@ -33,16 +32,16 @@ export function tokenRows(snapshot: MarketSnapshot): TokenRow[] {
 function OpenOrders({ side, rootId, snapshot }: { side: KuruSide; rootId: bigint; snapshot: MarketSnapshot }) {
   const market = kuruMarketFor(side);
   const orders = useOpenOrders(side, rootId);
-  const wallet = useWallet();
+  const viewer = useViewer();
   const pc = useClient();
-  const action = useAction();
+  const action = useAction([viewer.address, chain.id, market, rootId].join("|"));
   if (!market) return null;
   const symbol = side === "long" ? snapshot.claims.longSymbol : snapshot.claims.shortSymbol;
 
   const cancel = (slots: number[]) =>
-    action.run("Cancel", async () => {
-      if (!wallet) throw new Error("Connect a wallet first");
-      const session = await openSession(pc, wallet, config.kuru.accountCore);
+    action.run("Cancel", async (op) => {
+      const session = await openSession(pc, await op.wallet(), config.kuru.accountCore);
+      op.guard();
       return cancelSlots(session, market, rootId, slots);
     });
 
@@ -71,34 +70,39 @@ export function KuruAccount({ snapshot }: { snapshot: MarketSnapshot }) {
   const tokens = rows.map((r) => r.address);
   const account = useKuruAccount(viewer.address, tokens);
   const wallets = useWalletTokens(viewer.address, tokens);
-  const wallet = useWallet();
   const pc = useClient();
-  const action = useAction();
   const [selected, setSelected] = useState("quote");
   const [amount, setAmount] = useState("");
+  const action = useAction([viewer.address, chain.id, config.kuru.accountCore].join("|"), `${selected}|${amount}`);
   const freshness = useMarkFreshness();
 
   const row = rows.find((r) => r.key === selected) ?? rows[0]!;
   const parsed = parseAmount(amount, row.decimals);
   const kuruFree = account.data?.balances.find((b) => b.token.toLowerCase() === row.address.toLowerCase())?.free ?? 0n;
   const inWallet = wallets.data?.[row.address.toLowerCase()] ?? 0n;
+  // Kuru's limiter prices claims, not the quote token, so only claim moves wait for a usable mark.
+  const claimBlocked = row.key !== "quote" && !claimExitOpen(freshness);
 
   const deposit = () =>
-    action.run("Deposit", async () => {
-      if (!wallet || parsed === null) throw new Error("Connect a wallet first");
-      return depositToKuru(await openSession(pc, wallet, config.kuru.accountCore), row.address, parsed);
+    action.run("Deposit", async (op) => {
+      if (parsed === null) throw new Error("Enter a valid amount.");
+      const session = await openSession(pc, await op.wallet(), config.kuru.accountCore);
+      op.guard();
+      return depositToKuru(session, row.address, parsed, op.guard);
     });
   const withdraw = () =>
-    action.run("Withdraw", async () => {
-      if (!wallet || parsed === null) throw new Error("Connect a wallet first");
-      return withdrawFromKuru(await openSession(pc, wallet, config.kuru.accountCore), row.address, parsed);
+    action.run("Withdraw", async (op) => {
+      if (parsed === null) throw new Error("Enter a valid amount.");
+      const session = await openSession(pc, await op.wallet(), config.kuru.accountCore);
+      op.guard();
+      return withdrawFromKuru(session, row.address, parsed, op.guard);
     });
 
   return (
     <div className="panel">
       <div className="panel-head">
         <span className="label">Your Kuru trading balance</span>
-        <Src contract="Kuru AccountCore" address={config.kuru.accountCore} block={account.data?.block ?? null} />
+        <Src contract="Kuru AccountCore" address={config.kuru.accountCore} block={null} />
       </div>
       <div className="panel-pad stack-lg">
         <p className="sub">
@@ -122,6 +126,7 @@ export function KuruAccount({ snapshot }: { snapshot: MarketSnapshot }) {
                 </div>
               );
             })}
+            {account.data ? <p className="sub">Balances fetched near block {blockLabel(account.data.block)}. Free and reserved are separate reads, so they can differ by a block.</p> : null}
           </div>
         )}
         <div className="stack">
@@ -139,12 +144,21 @@ export function KuruAccount({ snapshot }: { snapshot: MarketSnapshot }) {
             error={amount && parsed === null ? "Enter a valid amount." : null}
           />
           <div className="row">
-            <ActionButton label={`Deposit ${row.symbol}`} busy={action.busy} disabled={parsed === null || parsed === 0n || parsed > inWallet} onRun={deposit} />
-            <ActionButton label={`Withdraw ${row.symbol}`} variant="secondary" busy={action.busy} disabled={parsed === null || parsed === 0n || parsed > kuruFree} onRun={withdraw} />
+            <ActionButton label={`Deposit ${row.symbol}`} busy={action.busy} disabled={parsed === null || parsed === 0n || parsed > inWallet || claimBlocked} onRun={deposit} />
+            <ActionButton label={`Withdraw ${row.symbol}`} variant="secondary" busy={action.busy} disabled={parsed === null || parsed === 0n || parsed > kuruFree || claimBlocked} onRun={withdraw} />
           </div>
-          {freshness.stale && row.key !== "quote" ? (
+          {claimBlocked ? (
             <div className="callout warn" role="status">
-              <strong>Stale mark: claim deposits and withdrawals may revert.</strong> The feed was last updated {freshness.ageSeconds !== null ? `${duration(freshness.ageSeconds)} ago` : "a while ago"}. Kuru&rsquo;s price check needs a fresh mark (under 30 min); the keeper refreshes it every few minutes, so try again shortly.
+              {freshness.state === "stale" ? (
+                <>
+                  <strong>Stale mark: claim deposits and withdrawals are paused.</strong> The feed was last updated {freshness.ageSeconds !== null ? `${duration(freshness.ageSeconds)} ago` : "a while ago"}. Kuru&rsquo;s price check needs a fresh mark (under 30 min); the keeper refreshes it every few minutes, so try again shortly.
+                </>
+              ) : (
+                <>
+                  <strong>Claim deposits and withdrawals are paused: the mark cannot be read.</strong> Kuru&rsquo;s price check needs a mark under 30 min old and this page cannot confirm one right now.
+                </>
+              )}{" "}
+              {config.kuru.quoteSymbol} deposits and withdrawals are not affected.
             </div>
           ) : null}
           <TxStatus state={action.state} />

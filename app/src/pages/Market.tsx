@@ -30,7 +30,7 @@ const COMPARE = [
   {
     kind: "Piry claim",
     pays: "Scaled to the index inside a band, capped at the cap",
-    limits: "Fully collateralized, with no margin, funding or liquidation. The most you can lose is the premium. The hedge stops paying at the cap, and it settles against an index, not your invoice.",
+    limits: "Fully collateralized, with no margin, funding or liquidation. A buyer can lose at most the premium paid. The hedge stops paying at the cap, and it settles against an index snapshot, not your invoice.",
     us: true,
   },
 ] as const;
@@ -38,7 +38,7 @@ const COMPARE = [
 export default function Market() {
   const live = useLiveSeries();
   const shortMark = live.long !== null ? 1 - Number(live.long) / Number(live.longScale) : null;
-  const outlay = shortMark !== null ? `about $${shortMark.toFixed(2)} per claim at today's mark` : "its outlay";
+  const outlay = shortMark !== null ? `$${shortMark.toFixed(2)} per claim` : "the short's value";
   usePage("Market", "Who the first Piry users are, why a GPU price hedge does not exist yet, and how a fully collateralized capped claim differs from perps, prediction markets and GPU marketplaces.");
   return (
     <>
@@ -75,8 +75,8 @@ export default function Market() {
               <p>An owner&rsquo;s revenue and a lender&rsquo;s collateral both lose value when rental rates fall. In principle that risk is what a lender would charge for in loan terms; a short claim lets them hedge it directly instead.</p>
               <dl>
                 <div><dt>Takes</dt><dd>The short, by minting a pair and selling the long</dd></div>
-                <div><dt>Gets</dt><dd>A payout that rises as the index falls, plus the premium</dd></div>
-                <div><dt>Risks</dt><dd>Losing its outlay ({outlay}) if rates rise; the loss is bounded by that outlay, not by a margin call</dd></div>
+                <div><dt>Gets</dt><dd>The long&rsquo;s sale price up front, plus a short payout that rises as the index falls</dd></div>
+                <div><dt>Risks</dt><dd>A net loss if the index settles above its break-even, the floor plus the sale price times the band width. The loss is bounded by the collateral less the sale price (about {outlay} at today&rsquo;s mark), not by a margin call</dd></div>
               </dl>
             </Reveal>
           </div>
@@ -92,7 +92,7 @@ export default function Market() {
       <section className="block" aria-labelledby="why-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="Why now" index="2/3" title={<>The demand is visible, <em>and the products are not live</em></>} lede="Every line links to the page it comes from." id="why-title" />
+            <BlockHead kicker="Why now" index="2/3" title={<>The interest is visible, <em>and the products are not live</em></>} lede="Every line links to the page it comes from." id="why-title" />
           </Reveal>
           <ul className="whynow whynow-wide">
             {whyNow.map((item, i) => (
@@ -113,7 +113,7 @@ export default function Market() {
       <section className="block" aria-labelledby="diff-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="How Piry differs" index="3/3" title={<>Not a perp, not a bet, <em>not a marketplace</em></>} lede="Each of these solves a different problem. Piry is the one built to hold a price steady." id="diff-title" />
+            <BlockHead kicker="How Piry differs" index="3/3" title={<>Not a perp, not a bet, <em>not a marketplace</em></>} lede="Each of these solves a different problem. Piry is the one built to offset a capped move in an index price." id="diff-title" />
           </Reveal>
           <Reveal delay={0.05}>
             <div className="table-wrap compare">
@@ -132,7 +132,7 @@ export default function Market() {
             </div>
           </Reveal>
           <p className="callout">
-            <strong>Complementary, not competing.</strong> A GPU marketplace gets you the compute. Piry locks the rate you will be re-quoted on settlement day for the compute you will need. A team can use both: rent where it is cheapest, and hedge the rate it expects to pay.
+            <strong>Complementary, not competing.</strong> A GPU marketplace gets you the compute. Piry offsets part of a move in the index price, up to a cap, and does not lock a bill. A team can use both: rent where it is cheapest, and hedge some of the price risk on the hours it expects to need.
           </p>
           <p className="block-link">
             <SiteLink to="/app" hash="exposure" className="text-link">Size a hedge for your GPUs</SiteLink>

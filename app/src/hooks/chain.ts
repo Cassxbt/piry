@@ -7,7 +7,7 @@ import type { SeriesSubject } from "../config/types";
 import { readHolder, readMark, readMarket, readShortMark, type MarketSnapshot } from "../lib/reads";
 import { logSources } from "../lib/logsClient";
 import { findSettlement } from "../lib/settlement";
-import { checkEvidence, fetchText } from "../lib/evidence";
+import { checkEvidence, evidenceUrls, fetchFirst, type EvidenceCheck } from "../lib/evidence";
 
 const POLL_MS = 8_000;
 
@@ -76,17 +76,32 @@ export function useSettlement(snapshot: MarketSnapshot | undefined, subject: Ser
   });
 }
 
+// url is where the file was found, or where it was first looked for when it is unavailable.
+export type EvidenceResult =
+  | { state: "unavailable"; text: null; check: null; url: string }
+  | { state: EvidenceCheck["state"]; text: string; check: EvidenceCheck; url: string };
+
+const EVIDENCE_RETRY_MS = 30_000;
+
 export function useEvidenceFile(snapshot: MarketSnapshot | undefined, subject: SeriesSubject) {
   const settled = snapshot?.state.settled ?? false;
   return useQuery({
     queryKey: ["evidence", subject.evidenceBase, snapshot?.state.evidenceHash],
-    queryFn: async () => {
-      const text = await fetchText(`${subject.evidenceBase}/evidence.json`);
-      if (text === null || !snapshot) return null;
-      return { text, check: checkEvidence(text, { evidenceHash: snapshot.state.evidenceHash, price: snapshot.state.settlementPrice }) };
+    queryFn: async (): Promise<EvidenceResult> => {
+      const { state: s, terms: t } = snapshot as MarketSnapshot;
+      const urls = evidenceUrls(subject.evidenceBase, subject.series.dataMode, s.evidenceHash);
+      const found = await fetchFirst(urls);
+      if (found === null) return { state: "unavailable", text: null, check: null, url: urls[0] as string };
+      const check = checkEvidence(found.text, {
+        evidenceHash: s.evidenceHash, price: s.settlementPrice, indexId: t.indexId, specHash: t.specHash,
+        periodStart: t.periodStart, periodEnd: t.periodEnd, publishedAt: s.reportPublishedAt, minSources: subject.series.source.minValid,
+      });
+      return { state: check.state, text: found.text, check, url: found.url };
     },
     enabled: settled && !snapshot?.state.settledByFallback,
-    staleTime: Infinity,
+    // A missing file is retried: the keeper may publish it after settlement.
+    staleTime: (query) => (query.state.data?.state === "unavailable" ? 0 : Infinity),
+    refetchInterval: (query) => (query.state.data?.state === "unavailable" ? EVIDENCE_RETRY_MS : false),
   });
 }
 

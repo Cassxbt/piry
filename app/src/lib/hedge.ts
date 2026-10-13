@@ -91,16 +91,27 @@ export function chartDomain(lower: number, upper: number, today: number): [numbe
   return [Math.max(0, Math.min(lower - span * 0.6, today * 0.75)), Math.max(upper + span * 1.1, today * 1.2)];
 }
 
+// Kuru stores fees as parts per this denominator: takerPps 7000 is 0.07%.
+export const KURU_FEE_DENOMINATOR = 10_000_000n;
+
 export interface PremiumQuote {
+  // Executable cost plus the illustrative remainder.
   premium: bigint;
-  // Claims (base units) the visible asks fill; the rest is priced at the feed mark.
+  // Claims (base units) the visible asks can fill now, counted only over the lots actually walked.
   filled: bigint;
+  // Cost of those claims at the asks, taker fee included.
+  executableCost: bigint;
+  fee: bigint;
+  // Claims the book cannot fill now, and what they would cost at the feed mark. Nobody has offered them at that price.
+  remainder: bigint;
+  remainderCost: bigint;
   basis: "book" | "book+mark" | "mark" | "book-partial";
 }
 
 export interface BookInput {
   asks: readonly Level[];
   scale: MarketScale;
+  takerFeePps: bigint;
 }
 
 export interface MarkInput {
@@ -108,16 +119,72 @@ export interface MarkInput {
   scale: bigint;
 }
 
-// Cost of the whole hedge: walk the visible asks, then price whatever the book cannot fill at the feed mark so a thin
-// book never makes the hedge look cheaper than it is. Without a mark an unfilled remainder is left out ("book-partial").
+// Cost of the whole hedge, kept in two parts: what the visible asks can fill now, and an illustrative remainder priced at
+// the feed mark so a thin book never makes the hedge look cheaper than it is. Without a mark the remainder is left out
+// ("book-partial"). Coverage is counted over the walked lots only: a fractional claim below one lot is never "filled".
 export function quoteHedge(claims: bigint, book: BookInput | null, mark: MarkInput | null, collateralDecimals: number): PremiumQuote {
   const atMark = (units: bigint) => (mark ? (units * mark.value + mark.scale - 1n) / mark.scale : 0n);
-  if (!book || book.asks.length === 0) return { premium: atMark(claims), filled: 0n, basis: "mark" };
+  if (!book || book.asks.length === 0) {
+    const remainderCost = atMark(claims);
+    return { premium: remainderCost, filled: 0n, executableCost: 0n, fee: 0n, remainder: claims, remainderCost, basis: "mark" };
+  }
   const walk = walkAsks(book.asks, sizeFromBaseAtoms(claims, book.scale), book.scale);
   const cost = (walk.cost * pow10(collateralDecimals)) / pow10(book.scale.quoteDecimals);
-  if (walk.complete) return { premium: cost, filled: claims, basis: "book" };
+  const fee = (cost * book.takerFeePps + KURU_FEE_DENOMINATOR - 1n) / KURU_FEE_DENOMINATOR;
   const filledRaw = baseAtoms(walk.filledSize, book.scale);
   const filled = filledRaw < claims ? filledRaw : claims;
-  if (!mark) return { premium: cost, filled, basis: "book-partial" };
-  return { premium: cost + atMark(claims - filled), filled, basis: "book+mark" };
+  const remainder = claims - filled;
+  const remainderCost = remainder > 0n ? atMark(remainder) : 0n;
+  const executableCost = cost + fee;
+  const basis = remainder === 0n ? "book" : mark ? "book+mark" : "book-partial";
+  return { premium: executableCost + remainderCost, filled, executableCost, fee, remainder, remainderCost, basis };
+}
+
+// A small example hedge the book can fill in full: the preferred size if the visible asks hold that many claims,
+// otherwise as many round hours as fit, then fewer GPUs. depth is in claim base units.
+export function exampleSize(
+  depth: bigint,
+  shape: Pick<Exposure, "band" | "priceDecimals" | "collateralDecimals">,
+  preferred = { gpus: 8n, hours: 720n },
+): { gpus: bigint; hours: bigint } {
+  const perGpuHour = claimsToHold({ gpus: 1n, hours: 1n, ...shape });
+  if (depth <= 0n || perGpuHour <= 0n) return preferred;
+  const fits = depth / perGpuHour;
+  if (fits >= preferred.gpus * preferred.hours) return preferred;
+  const hours = fits / preferred.gpus;
+  if (hours >= 10n) return { gpus: preferred.gpus, hours: hours - (hours % 10n) };
+  return { gpus: 1n, hours: fits > 0n ? fits : 1n };
+}
+
+// Net result, in collateral units and before fees, of minting `quantity` pairs (1 collateral unit per pair), selling one
+// leg for `proceeds` and keeping the other to settlement at `price`.
+export function mintAndSellNet({ quantity, sold, proceeds, price, band }: { quantity: bigint; sold: "long" | "short"; proceeds: bigint; price: bigint; band: Band }): bigint {
+  const kept = payouts(quantity, price, band)[sold === "long" ? "short" : "long"];
+  return proceeds + kept - quantity;
+}
+
+// Index at which a claim bought (or, for the counterparty, sold) at `cost` per claim breaks even, before fees. Whoever
+// mints a pair and sells the long keeps the short, so they break even at the same index as the long's buyer.
+export function breakEvenIndex(side: "long" | "short", cost: number, { lower, upper }: { lower: number; upper: number }): number {
+  return side === "long" ? lower + cost * (upper - lower) : upper - cost * (upper - lower);
+}
+
+export interface OtherSideRow {
+  // Per pair minted (1 collateral unit), before fees and gas.
+  net: number;
+  maxGain: number;
+  maxLoss: number;
+  breakEven: number;
+  // Which side of the break-even index the position profits on.
+  wins: "below" | "above";
+}
+
+// The minter's position: sell one leg at `bid` per claim, keep the other, and see where it breaks even.
+export function otherSide(sold: "long" | "short", bid: number, band: Band, priceDecimals: number, collateralDecimals: number, scrub: number): OtherSideRow {
+  const net = mintAndSellNet({
+    quantity: pow10(collateralDecimals), sold, proceeds: BigInt(Math.round(bid * 10 ** collateralDecimals)),
+    price: BigInt(Math.round(scrub * 10 ** priceDecimals)), band,
+  });
+  const range = { lower: Number(band.lower) / 10 ** priceDecimals, upper: Number(band.upper) / 10 ** priceDecimals };
+  return { net: Number(net) / 10 ** collateralDecimals, maxGain: bid, maxLoss: 1 - bid, breakEven: breakEvenIndex(sold, bid, range), wins: sold === "long" ? "below" : "above" };
 }

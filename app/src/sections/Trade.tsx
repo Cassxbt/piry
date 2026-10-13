@@ -92,7 +92,7 @@ export function Trade() {
         <button type="button" aria-pressed={route === "mint"} onClick={() => setRoute("mint")}>
           <span className="t">Take the short: mint and sell</span>
           <span className="d">
-            Mint a pair, sell {bothListed ? "the short or long leg" : "the long leg"} to the book and keep the rest. You earn the premium if prices stay below the cap.
+            Mint a pair, sell {bothListed ? "the short or long leg" : "the long leg"} to the book and keep the other. You are paid the sale price now; your net result depends on where the index settles, and the calculator shows the break-even.
           </span>
         </button>
       </div>

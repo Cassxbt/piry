@@ -9,22 +9,19 @@ import { Src } from "../components/Src";
 import { TxLink } from "./evidence/shared";
 import { useAction } from "../hooks/action";
 import { useClient, useHolder, useMarket } from "../hooks/chain";
-import { primarySubject } from "../config";
+import { chain, primarySubject } from "../config";
 import { useLifecycle } from "../hooks/lifecycle";
 import { useViewer } from "../hooks/viewer";
-import { useWallet } from "../hooks/wallet";
 import { blockLabel, fixed, parseAmount, shortAddress, usd, utc } from "../lib/format";
 import { payouts, previewRedeem, roundingLoss } from "../lib/payout";
 import type { MarketSnapshot } from "../lib/reads";
 
 type Guard = "exact" | "custom";
 
-function RedeemForm({ snapshot }: { snapshot: MarketSnapshot }) {
+export function RedeemForm({ snapshot }: { snapshot: MarketSnapshot }) {
   const viewer = useViewer();
   const holder = useHolder(snapshot, viewer.address);
-  const wallet = useWallet();
   const pc = useClient();
-  const action = useAction();
   const { decimals } = snapshot.claims;
   const cd = snapshot.collateral.decimals;
   const held = holder.data;
@@ -34,6 +31,8 @@ function RedeemForm({ snapshot }: { snapshot: MarketSnapshot }) {
   const [touched, setTouched] = useState(false);
   const [guard, setGuard] = useState<Guard>("exact");
   const [customMin, setCustomMin] = useState("");
+  const [ackedBurn, setAckedBurn] = useState("");
+  const action = useAction([viewer.address, chain.id, snapshot.address].join("|"), [longText, shortText, guard, customMin].join("|"));
 
   useEffect(() => {
     if (touched) return;
@@ -69,17 +68,24 @@ function RedeemForm({ snapshot }: { snapshot: MarketSnapshot }) {
   const loss = valid ? roundingLoss(longAmount, shortAmount, price, band) : { numerator: 0n, width: 1n };
   const lossUnits = Number((loss.numerator * 1000n) / loss.width) / 1000;
 
+  // The exact-preview default cannot protect against a preview that is itself zero, so that case needs consent.
+  const zeroOutput = valid && onchain.data === 0n;
+  const amountsKey = `${longText}|${shortText}`;
+  const burnAcked = ackedBurn === amountsKey;
+  const matchedPairs = valid ? (longAmount < shortAmount ? longAmount : shortAmount) : 0n;
+
   const redeem = () =>
-    action.run("Redeem", async () => {
-      const account = wallet?.account;
-      if (!wallet || !account || !valid || minPayout === null) throw new Error("Connect a wallet and enter amounts first");
+    action.run("Redeem", async (op) => {
+      if (!valid || minPayout === null) throw new Error("Enter amounts first");
+      const wallet = await op.wallet();
       const { request } = await pc.simulateContract({
-        account,
+        account: wallet.account,
         address: snapshot.address,
         abi: computeMarketAbi,
         functionName: "redeem",
-        args: [longAmount, shortAmount, account.address, minPayout],
+        args: [longAmount, shortAmount, wallet.account.address, minPayout],
       });
+      op.guard();
       return wallet.writeContract(request);
     });
 
@@ -90,6 +96,7 @@ function RedeemForm({ snapshot }: { snapshot: MarketSnapshot }) {
     : !valid ? "Enter an amount to redeem."
     : onchain.isError ? "The contract refused this preview."
     : minPayout === null ? "Enter a minimum payout."
+    : zeroOutput && !burnAcked ? "Acknowledge the zero-value burn to continue."
     : null;
 
   return (
@@ -131,8 +138,22 @@ function RedeemForm({ snapshot }: { snapshot: MarketSnapshot }) {
             <Field label="Revert if the payout is below" value={customMin} onChange={setCustomMin} unit={snapshot.collateral.symbol} error={customMinParsed === null ? "Enter a valid amount." : null} />
           ) : null}
           <p className="sub">
-            The transaction reverts with MinimumPayoutNotMet if the payout would fall below this. A zero minimum would permit a zero-output burn, so the default is the contract&rsquo;s own preview.
+            The transaction reverts with MinimumPayoutNotMet if the payout would fall below this. A zero minimum would permit a zero-output burn, so the default is the contract&rsquo;s own preview. If that preview is itself zero, you must acknowledge the burn before redeeming.
           </p>
+          {zeroOutput ? (
+            <div className="callout warn stack" role="status">
+              <p><strong>This redemption pays nothing.</strong> The contract would burn these claims and send back 0 {snapshot.collateral.symbol}.</p>
+              {matchedPairs > 0n ? (
+                <p>
+                  You are redeeming {fixed(matchedPairs, decimals, decimals)} matched {matchedPairs === 1n ? "pair" : "pairs"}. <a href="#position">Merge them</a> instead: merging returns collateral exactly, and you can redeem only the unmatched remainder.
+                </p>
+              ) : null}
+              <label className="check-line">
+                <input type="checkbox" checked={burnAcked} onChange={(e) => setAckedBurn(e.target.checked ? amountsKey : "")} />
+                Burn {fixed(longAmount ?? 0n, decimals, decimals)} {snapshot.claims.longSymbol} and {fixed(shortAmount ?? 0n, decimals, decimals)} {snapshot.claims.shortSymbol} for nothing.
+              </label>
+            </div>
+          ) : null}
 
           <ActionButton label="Redeem" busy={action.busy} disabled={blocker !== null} onRun={redeem} block />
           {blocker ? <p className="sub" role="status">{blocker}</p> : null}

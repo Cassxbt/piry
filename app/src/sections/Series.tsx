@@ -230,7 +230,7 @@ export function SeriesCard() {
                 )}
                 {snapshot ? (
                   <span className="sub">
-                    If no valid report arrives within {duration(Number(snapshot.terms.fallbackDelay))} of period end, anyone can settle at the band midpoint ({unit((snapshot.terms.lower + snapshot.terms.upper) / 2n)}). Funds can never be locked.
+                    If no valid report arrives within {duration(Number(snapshot.terms.fallbackDelay))} of period end, anyone can settle at the band midpoint ({unit((snapshot.terms.lower + snapshot.terms.upper) / 2n)}). Until then a holder of one leg waits for it; the midpoint is a fixed split of the band, not the fair price, and the first settlement wins.
                   </span>
                 ) : null}
               </div>

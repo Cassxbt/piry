@@ -7,12 +7,11 @@ import { Field } from "../components/Field";
 import { Pending } from "../components/Pending";
 import { Section } from "../components/Section";
 import { Src } from "../components/Src";
-import { config } from "../config";
+import { chain, config } from "../config";
 import { useAction } from "../hooks/action";
 import { useClient, useHolder, useMark, useMarket } from "../hooks/chain";
 import { useKuruAccount } from "../hooks/kuru";
 import { useViewer } from "../hooks/viewer";
-import { useWallet } from "../hooks/wallet";
 import { fixed, parseAmount, shortAddress, usd } from "../lib/format";
 import { markLabel } from "../lib/labels";
 import { previewRedeem } from "../lib/payout";
@@ -75,20 +74,21 @@ function Totals({ snapshot }: { snapshot: MarketSnapshot }) {
   );
 }
 
-function Merge({ snapshot, pairs }: { snapshot: MarketSnapshot; pairs: bigint }) {
-  const wallet = useWallet();
+export function Merge({ snapshot, pairs }: { snapshot: MarketSnapshot; pairs: bigint }) {
+  const viewer = useViewer();
   const pc = useClient();
-  const action = useAction();
   const [amount, setAmount] = useState("");
+  const action = useAction([viewer.address, chain.id, snapshot.address].join("|"), amount);
   const decimals = snapshot.claims.decimals;
   const quantity = parseAmount(amount, decimals);
   const error = quantity === null || quantity === 0n ? "Enter an amount." : quantity > pairs ? "More pairs than you hold." : null;
 
   const merge = () =>
-    action.run("Merge", async () => {
-      const account = wallet?.account;
-      if (!wallet || !account || quantity === null) throw new Error("Connect a wallet first");
-      const { request } = await pc.simulateContract({ account, address: snapshot.address, abi: computeMarketAbi, functionName: "mergePairs", args: [quantity, account.address] });
+    action.run("Merge", async (op) => {
+      if (quantity === null) throw new Error("Enter an amount.");
+      const wallet = await op.wallet();
+      const { request } = await pc.simulateContract({ account: wallet.account, address: snapshot.address, abi: computeMarketAbi, functionName: "mergePairs", args: [quantity, wallet.account.address] });
+      op.guard();
       return wallet.writeContract(request);
     });
 

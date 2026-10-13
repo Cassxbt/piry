@@ -188,7 +188,7 @@ export function Ledger({ subject, snapshot, settlement, settlementReady }: { sub
       <div className="panel-pad stack">
         <div className="scoreboard" role="group" aria-label="Delivery outcomes">
           <Counter value={settled} label="settled" tone="ok" />
-          <Counter value={refused} label="refused on-chain" tone="bad" />
+          <Counter value={refused} label="refused on-chain (found)" tone="bad" />
           <Counter value={offchain.length} label="stopped off-chain" tone="bad" />
           <Counter value={unconfirmed} label="unconfirmed" tone="warn" />
         </div>
@@ -201,7 +201,8 @@ export function Ledger({ subject, snapshot, settlement, settlementReady }: { sub
           <div className="stack" style={{ gap: 6 }}>
             {data.scan ? (
               <p className="sub num">
-                Scanned blocks {blockLabel(data.scan.fromBlock)} to {blockLabel(data.scan.toBlock)} for ReportProcessed events via {data.scan.via} ({data.scan.requests} {data.scan.requests === 1 ? "query" : "queries"} of up to {data.scan.chunk.toLocaleString("en-US")} blocks).
+                Reports found in this scan (blocks {blockLabel(data.scan.fromBlock)} to {blockLabel(data.scan.toBlock)}) plus pinned records: ReportProcessed events to this series&rsquo; receiver and feed, via {data.scan.via} ({data.scan.requests} {data.scan.requests === 1 ? "query" : "queries"} of up to {data.scan.chunk.toLocaleString("en-US")} blocks).
+                {settlement?.kind === "report" ? " The scan ends a few thousand blocks after the settlement transaction, so a later replay appears only if it is pinned." : ""}
                 {data.scan.failedSources.length > 0 ? ` ${data.scan.failedSources.join(", ")} did not answer, so the scan fell back to ${data.scan.via} with smaller pages.` : ""}
                 {data.scan.truncated ? " Older blocks were not scanned; only transactions pinned in the manifest are shown from before this window." : ""}
               </p>
