@@ -172,6 +172,14 @@ test("sizeBuy walks the budget up to the cap and stops when the book is exhauste
   assert.equal((await sizeBuy(() => Promise.resolve({ amountInUsed: 0n, amountOut: 0n }), 5n, 4n, null)).expectedOut, 0n);
 });
 
+test("sizeBuy does not mistake whole-lot rounding for an exhausted book", async () => {
+  // Kuru fills whole claims and charges a taker fee, so a budget sized at the ask leaves change and floors one lot short.
+  const lots = (amountIn: bigint) => { const n = amountIn / 1001n; return Promise.resolve({ amountInUsed: n * 1001n, amountOut: n * U }); };
+  const sized = await sizeBuy(lots, 11n * U, 11_000n, null);
+  assert.equal(sized.complete, true);
+  assert.ok(sized.expectedOut >= 11n * U);
+});
+
 test("the Run budget blocks an over-cap step before it reaches the wallet", async () => {
   let called = 0;
   const run = new Run({ address: OWNER, send: async () => { called++; return { hash: "0x01", status: "CONFIRMED" }; } }, new Budget(100n));

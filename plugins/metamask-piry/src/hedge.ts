@@ -68,10 +68,12 @@ export async function sizeBuy(
   let best: BuySizing = { amountIn: 0n, expectedOut: 0n, complete: false };
   for (let i = 0; i < 8 && amountIn > 0n; i++) {
     const est = await estimate(amountIn);
+    // Unused input alone is not exhaustion: whole-lot fills leave change. The book is dry only when more input
+    // stops buying more claims.
+    const bookExhausted = est.amountInUsed < amountIn && est.amountOut <= best.expectedOut;
     if (est.amountOut > best.expectedOut) {
       best = { amountIn: est.amountInUsed < amountIn ? est.amountInUsed : amountIn, expectedOut: est.amountOut, complete: est.amountOut >= wanted };
     }
-    const bookExhausted = est.amountInUsed < amountIn;
     if (est.amountOut >= wanted || bookExhausted || (cap !== null && amountIn >= cap)) break;
     const next = limit(est.amountOut === 0n ? amountIn * 2n : ceilDiv(amountIn * wanted, est.amountOut) + 1n);
     if (next <= amountIn) break;
