@@ -133,9 +133,6 @@ a.src:hover { color: var(--ink); text-decoration: underline; }
 @media (max-width: 480px) { .results { grid-template-columns: 1fr; } .result:nth-child(even) { padding-left: 0; border-left: 0; } .result:nth-child(odd) { padding-right: 0; } }
 
 .chart-wrap { padding: 8px 12px 4px; }
-.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 12.5px; color: var(--ink-2); padding: 0 12px 10px; }
-.legend i { display: inline-block; width: 22px; height: 0; border-top: 2px solid; vertical-align: middle; margin-right: 8px; }
-.legend i.dash { border-top-style: dashed; }
 .scrub { padding: 12px 20px 20px; display: grid; gap: 12px; border-top: 1px solid var(--rule); }
 .scrub input[type="range"] { width: 100%; accent-color: var(--ink); min-height: 32px; }
 .scenarios { display: grid; gap: 0; border-top: 1px solid var(--rule); }
@@ -261,7 +258,6 @@ a.src:hover { color: var(--ink); text-decoration: underline; }
 .counter.bad .counter-value { color: var(--short); }
 .counter.warn .counter-value { color: var(--warn); }
 
-.ruler { width: 100%; min-width: 0; overflow: hidden; }
 
 .calc-side { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; }
 .how { display: grid; gap: 0; margin-top: 28px; counter-reset: how; }
