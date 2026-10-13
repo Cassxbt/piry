@@ -224,7 +224,14 @@ async function run(env: Env, args: { wallets: number; seed: number; monEach: num
   };
   const deployerBefore = await view(env.owner);
   const track = async (wallet: string, kind: string, hash: Hex) => {
-    const [receipt, tx] = await Promise.all([confirmed(pc, hash), pc.getTransaction({ hash })]);
+    // The public RPC can return the receipt before the transaction itself is queryable.
+    const receipt = await confirmed(pc, hash);
+    let tx = await pc.getTransaction({ hash }).catch(() => undefined);
+    for (let attempt = 0; !tx && attempt < 10; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      tx = await pc.getTransaction({ hash }).catch(() => undefined);
+    }
+    if (!tx) throw new Error(`transaction ${hash} mined but not retrievable`);
     log.push({ wallet, kind, hash, gasUsed: receipt.gasUsed, gasLimit: tx.gas, gasPrice: receipt.effectiveGasPrice });
     return receipt;
   };
@@ -234,8 +241,12 @@ async function run(env: Env, args: { wallets: number; seed: number; monEach: num
   const dep = env.wallet!;
   for (const [i, w] of stored.slice(0, args.wallets).entries()) {
     const f = funding[i]!;
-    if (f.usdc > 0n) await track('deployer', 'fund-usdc', await write(dep, config.collateral, erc20Abi, 'transfer', [w.address, f.usdc]));
-    if (f.mon > 0n) await track('deployer', 'fund-mon', await dep.sendTransaction({ to: w.address, value: f.mon, chain: env.chain, account: dep.account! } as never));
+    // Re-runs top up only the shortfall, so a resumed run never double-funds a wallet.
+    const [haveUsdc, haveMon] = await Promise.all([balanceOf(config.collateral, w.address), pc.getBalance({ address: w.address })]);
+    const needUsdc = f.usdc > haveUsdc ? f.usdc - haveUsdc : 0n;
+    const needMon = f.mon > haveMon ? f.mon - haveMon : 0n;
+    if (needUsdc > 0n) await track('deployer', 'fund-usdc', await write(dep, config.collateral, erc20Abi, 'transfer', [w.address, needUsdc]));
+    if (needMon > 0n) await track('deployer', 'fund-mon', await dep.sendTransaction({ to: w.address, value: needMon, chain: env.chain, account: dep.account! } as never));
     walletRows.push({ address: w.address, persona: plans[i]!.persona, fundedUsdc: usdcOf(f.usdc), fundedMon: formatUnits(f.mon, 18) });
   }
 
@@ -381,7 +392,14 @@ async function sweep(
 ) {
   const { pc, config } = env;
   const track = trackIn ?? (async (wallet: string, kind: string, hash: Hex) => {
-    const [receipt, tx] = await Promise.all([confirmed(pc, hash), pc.getTransaction({ hash })]);
+    // The public RPC can return the receipt before the transaction itself is queryable.
+    const receipt = await confirmed(pc, hash);
+    let tx = await pc.getTransaction({ hash }).catch(() => undefined);
+    for (let attempt = 0; !tx && attempt < 10; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      tx = await pc.getTransaction({ hash }).catch(() => undefined);
+    }
+    if (!tx) throw new Error(`transaction ${hash} mined but not retrievable`);
     log.push({ wallet, kind, hash, gasUsed: receipt.gasUsed, gasLimit: tx.gas, gasPrice: receipt.effectiveGasPrice });
   });
   const balanceOf = (token: Address, owner: Address) => pc.readContract({ address: token, abi: erc20Abi, functionName: 'balanceOf', args: [owner] });

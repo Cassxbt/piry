@@ -4,7 +4,9 @@ import {
 import type { Address } from "viem";
 import { configSchema, type Config } from "./config.js";
 import { validateAkashEvidence } from "./akash.js";
-import { collectComposite, deliverReport, fetchAkashEvidence, fetchSource } from "./onchain.js";
+import { DEFAULT_FULL_QUORUM_SECONDS, requireSettlementQuorum } from "./composite.js";
+import { collectComposite, deliverReport, fetchAkashEvidence, fetchSource, logEvidence } from "./onchain.js";
+import { preflight } from "./preflight.js";
 import { encodeMarketReport } from "./report.js";
 import { requireValue, validateDataset, type ValidatedIndex } from "./validation.js";
 
@@ -17,7 +19,11 @@ export function fetchObservationEvidence(requester: HTTPSendRequester, config: C
 
 function observe(runtime: Runtime<Config>, config: Config, nowSeconds: number): ValidatedIndex {
   const { terms } = config;
-  if (terms.mode === "COMPOSITE") return collectComposite(runtime, terms, nowSeconds, "settlement");
+  if (terms.mode === "COMPOSITE") {
+    const validated = collectComposite(runtime, terms, nowSeconds, "settlement");
+    requireSettlementQuorum(validated.slots, terms, nowSeconds, config.settlementFullQuorumSeconds ?? DEFAULT_FULL_QUORUM_SECONDS);
+    return validated;
+  }
   const evidence = new HTTPClient().sendRequest(
     runtime, fetchObservationEvidence, consensusIdenticalAggregation<string>(),
   )(config, nowSeconds).result();
@@ -32,11 +38,13 @@ export function onSettlement(runtime: Runtime<Config>): string {
   const config = configSchema.parse(runtime.config);
   const nowSeconds = Math.floor(runtime.now().getTime() / 1000);
   const { terms } = config;
+  preflight(runtime, config);
   const validated = observe(runtime, config, nowSeconds);
   const payload = encodeMarketReport(validated, terms, {
     market: config.market as Address, chainId: BigInt(config.chainId),
-  });
+  }, config.settlementMarginSeconds);
   runtime.log(`${terms.mode} ${config.executionMode}: price=${validated.price}; evidence=${validated.evidenceHash}; payload=${payload}`);
+  logEvidence(runtime, validated);
   const outcome = deliverReport(runtime, config, payload, config.receiver, config.gasLimit);
   return `${terms.mode}: ${outcome}; evidence=${validated.evidenceHash}`;
 }

@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { EVMClient } from '@chainlink/cre-sdk';
 import { EvmMock, HttpActionsMock, newTestRuntime, test, REPORT_METADATA_HEADER_LENGTH } from '@chainlink/cre-sdk/test';
-import { decodeAbiParameters, hexToBytes, parseAbiParameters, toHex } from 'viem';
+import { decodeAbiParameters, hexToBytes, keccak256, parseAbiParameters, toBytes, toHex } from 'viem';
 import series from '../../deployments/series.composite-h100.example.json' with { type: 'json' };
+import manifest from '../../deployments/monad-testnet.public.json' with { type: 'json' };
 import example from '../config.composite.example.json' with { type: 'json' };
+import liveConfig from '../config.composite.live.json' with { type: 'json' };
 import { AKASH_SOURCE_URL } from '../akash.js';
 import { COMPOSITE_SOURCE_LABEL, compositeSnapshot, type CompositeSource, type FailureReason, type SourceResult } from '../composite.js';
 import { configSchema, type Config } from '../config.js';
@@ -14,6 +16,7 @@ import { onSettlement } from '../settlement.js';
 import { COMPOSITE_SOURCES, indexIdentity } from '../validation.js';
 import { compositeTerms, expected, liveBodies, periodEnd } from '../test/composite-fixtures.js';
 import type { Body } from '../test/akash-fixtures.js';
+import { mockChain, type ChainState } from './chain.js';
 
 const markFeed = '0x3333333333333333333333333333333333333333';
 const config: Config = {
@@ -25,7 +28,10 @@ const config: Config = {
 const settleNow = periodEnd + 95;
 const markNow = periodEnd - 6 * 3600 + 17;
 const selector = EVMClient.SUPPORTED_CHAIN_SELECTORS['monad-testnet'];
-const runtime = (now: number, value = config) => newTestRuntime(null, { timeProvider: () => now * 1000 }, value);
+const runtime = (now: number, value = config, chain: Partial<ChainState> = {}) => {
+  mockChain(value, chain);
+  return newTestRuntime(null, { timeProvider: () => now * 1000 }, value);
+};
 const accepted = { txStatus: 'TX_STATUS_SUCCESS', receiverContractExecutionStatus: 'RECEIVER_CONTRACT_EXECUTION_STATUS_SUCCESS' } as const;
 const markAbi = parseAbiParameters('(address feed,uint256 chainId,bytes32 indexId,uint256 indexPrice,uint64 observedAt,bytes32 evidenceHash)');
 const sourceOf = (url: string): CompositeSource => COMPOSITE_SOURCES.find(source => ({
@@ -148,6 +154,7 @@ test('settlement outside its window is refused without contacting any source or 
   assert.equal(writes.length, 0);
 });
 
+const threeSourcesAllowed: Config = { ...config, settlementFullQuorumSeconds: 0 };
 const failures: [string, CompositeSource, Reply, FailureReason][] = [
   ['an HTTP error', 'runpod', { status: 503 }, 'http-status'],
   ['malformed JSON', 'akash', { body: '{' }, 'invalid-response'],
@@ -164,7 +171,7 @@ for (const [name, source, reply, reason] of failures) {
     test(`${handler} continues on the other three sources when ${source} returns ${name}, and records the failure`, () => {
       mockSources({ [source]: reply });
       const writes = mockWrites();
-      run(runtime(now));
+      run(runtime(now, threeSourcesAllowed));
       assert.equal(writes.length, 1);
       const payload = writes[0].payload;
       const hash = handler === 'settlement' ? decodeAbiParameters(REPORT_ABI, payload)[0].evidenceHash : decodeAbiParameters(markAbi, payload)[0].evidenceHash;
@@ -270,4 +277,231 @@ test('composite example configuration fails until every placeholder is replaced 
   assert.deepEqual(series.receiver, { mode: 'simulation' });
   assert.equal(series.forwarder, '0xB9F79d863261869B234c481D1f9A7af84AeAd192');
   assert.match(series.collateral, /^REPLACE_WITH_/);
+});
+
+const longWindow: Config = { ...config, terms: { ...compositeTerms, maxPublicationAgeSeconds: 86400 } };
+const fullQuorumSeconds = 14400;
+const settledPrice = (payload: `0x${string}`) => decodeAbiParameters(REPORT_ABI, payload)[0].price;
+
+test('a four-source mark does not authorize a three-source settlement inside the full-quorum window', () => {
+  const at = periodEnd + 120;
+  mockSources();
+  let writes = mockWrites();
+  onMark(runtime(at, longWindow));
+  assert.equal(writes.length, 1);
+  assert.equal(decodeAbiParameters(markAbi, writes[0].payload)[0].indexPrice, expected.median);
+
+  mockSources({ shadeform: { status: 503 } });
+  writes = mockWrites();
+  assert.throws(() => onSettlement(runtime(at, longWindow)), /settlement needs 4 valid sources .* got 3/);
+  assert.equal(writes.length, 0);
+});
+
+for (const [offset, settles] of [[fullQuorumSeconds - 1, false], [fullQuorumSeconds, true], [fullQuorumSeconds + 60, true]] as const) {
+  test(`direct settlement on three sources ${settles ? 'succeeds' : 'is refused'} at expiry + ${offset}s`, () => {
+    mockSources({ shadeform: { status: 503 } });
+    const writes = mockWrites();
+    const run = () => onSettlement(runtime(periodEnd + offset, longWindow));
+    if (!settles) {
+      assert.throws(run, /settlement needs 4 valid sources/);
+      assert.equal(writes.length, 0);
+      return;
+    }
+    run();
+    assert.equal(writes.length, 1);
+    assert.equal(settledPrice(writes[0].payload), 2730000n);
+  });
+}
+
+test('four sources settle at the first eligible minute', () => {
+  mockSources();
+  const writes = mockWrites();
+  onSettlement(runtime(periodEnd + 60, longWindow));
+  assert.equal(settledPrice(writes[0].payload), expected.median);
+});
+
+test('one malformed matching listing drops a source and so cannot settle inside the full-quorum window', () => {
+  const body = liveBodies.shadeform();
+  body.instance_types.find((entry: Body) => entry.configuration.interconnect === 'sxm5' && entry.cloud !== 'verda').hourly_price = null;
+  mockSources({ shadeform: { body } });
+  const writes = mockWrites();
+  assert.throws(() => onSettlement(runtime(periodEnd + 120, longWindow)), /settlement needs 4 valid sources/);
+  assert.equal(writes.length, 0);
+});
+
+test('settlementFullQuorumSeconds moves the boundary; the policy is not part of the pinned terms', () => {
+  const custom: Config = { ...longWindow, settlementFullQuorumSeconds: 600 };
+  mockSources({ shadeform: { status: 503 } });
+  const writes = mockWrites();
+  assert.throws(() => onSettlement(runtime(periodEnd + 599, custom)), /settlement needs 4 valid sources/);
+  onSettlement(runtime(periodEnd + 600, custom));
+  assert.equal(writes.length, 1);
+  assert.throws(() => configSchema.parse({ ...config, terms: { ...compositeTerms, settlementFullQuorumSeconds: 600 } }));
+});
+
+const wrongHash = `0x${'11'.repeat(32)}`;
+const wrongAddress = '0x4444444444444444444444444444444444444444';
+const preflightFailures: [string, Partial<ChainState>, RegExp, ('settlement' | 'mark')[]][] = [
+  ['market specHash', { specHash: wrongHash }, /specHash/, ['settlement', 'mark']],
+  ['market indexId', { indexId: wrongHash }, /indexId/, ['settlement', 'mark']],
+  ['market price decimals', { priceDecimals: 8 }, /priceDecimals/, ['settlement', 'mark']],
+  ['market periodStart', { periodStart: BigInt(compositeTerms.periodStart) + 1n }, /periodStart/, ['settlement', 'mark']],
+  ['market periodEnd', { periodEnd: BigInt(periodEnd) + 1n }, /periodEnd/, ['settlement', 'mark']],
+  ['market already settled', { settled: true }, /already settled/, ['settlement', 'mark']],
+  ['settlement authority', { settlementAuthority: wrongAddress }, /settlementAuthority/, ['settlement']],
+  ['feed market', { feedMarket: wrongAddress }, /feed market/, ['mark']],
+  ['feed indexId', { feedIndexId: wrongHash }, /feed indexId/, ['mark']],
+];
+for (const [name, chain, message, handlers] of preflightFailures) {
+  for (const handler of handlers) {
+    test(`${handler} refuses before any fetch or report when the ${name} differs on chain`, () => {
+      const seen = mockSources();
+      const writes = mockWrites();
+      const [run, now] = handler === 'settlement' ? [onSettlement, settleNow] : [onMark, markNow];
+      assert.throws(() => run(runtime(now, config, chain)), message);
+      assert.equal(seen.length, 0);
+      assert.equal(writes.length, 0);
+    });
+  }
+}
+
+for (const handler of ['settlement', 'mark'] as const) {
+  test(`${handler} refuses before any fetch when the chain cannot be read`, () => {
+    const seen = mockSources();
+    const writes = mockWrites();
+    const [run, now] = handler === 'settlement' ? [onSettlement, settleNow] : [onMark, markNow];
+    const rt = runtime(now);
+    EvmMock.testInstance(selector).callContract = () => { throw new Error('rpc down'); };
+    assert.throws(() => run(rt));
+    assert.equal(seen.length, 0);
+    assert.equal(writes.length, 0);
+  });
+}
+
+test('the preflight reads only the market for settlement and the market plus the feed for a mark', () => {
+  mockSources();
+  mockWrites();
+  const reads = (run: typeof onMark, now: number) => {
+    const { calls } = mockChain(config);
+    run(newTestRuntime(null, { timeProvider: () => now * 1000 }, config));
+    return calls;
+  };
+  const market = config.market.toLowerCase();
+  const feed = markFeed.toLowerCase();
+  assert.deepEqual(reads(onSettlement, settleNow).map(call => call.split('.')[0]).filter((to, i, all) => all.indexOf(to) === i), [market]);
+  assert.deepEqual(reads(onMark, markNow).map(call => call.split('.')[0]).filter((to, i, all) => all.indexOf(to) === i), [market, feed]);
+});
+
+const margined: Config = { ...longWindow, settlementMarginSeconds: 15 };
+const publishedAtOf = (payload: `0x${string}`) => Number(decodeAbiParameters(REPORT_ABI, payload)[0].publishedAt);
+
+for (const second of [0, 14, 15, 59]) {
+  test(`settlement inside the expiry minute (+${second}s) is refused because the margined time precedes expiry`, () => {
+    const seen = mockSources();
+    const writes = mockWrites();
+    assert.throws(() => onSettlement(runtime(periodEnd + second, margined)), /margin/);
+    assert.equal(writes.length, 0);
+  });
+
+  test(`settlement ${second}s into the first eligible minute backdates publishedAt, keeps the evidence unchanged and never leads the chain`, () => {
+    const now = periodEnd + 60 + second;
+    mockSources();
+    const writes = mockWrites();
+    const rt = runtime(now, margined);
+    const logs: string[] = [];
+    rt.log = (message: string) => { logs.push(message); };
+    onSettlement(rt);
+    const [report] = decodeAbiParameters(REPORT_ABI, writes[0].payload);
+    assert.equal(report.publishedAt, BigInt(periodEnd + 45));
+    assert(report.publishedAt <= BigInt(now - 15));
+    assert(report.publishedAt >= BigInt(periodEnd));
+    assert.equal(report.evidenceHash, expectedHash(now, 'settlement'));
+    const evidence = JSON.parse(logs.find(line => line.startsWith('PIRY_EVIDENCE'))!.split(' ').slice(2).join(' '));
+    assert.equal(evidence.observedAt, periodEnd + 60);
+  });
+}
+
+test('a later minute is backdated by the same margin', () => {
+  mockSources();
+  const writes = mockWrites();
+  onSettlement(runtime(periodEnd + 3 * 60 + 41, margined));
+  assert.equal(publishedAtOf(writes[0].payload), periodEnd + 3 * 60 - 15);
+});
+
+test('with an expiry inside a minute the margined time must still reach expiry', () => {
+  const offMinute = (margin: number): Config => ({
+    ...margined, settlementMarginSeconds: margin, terms: { ...longWindow.terms, periodEnd: periodEnd + 30 },
+  });
+  mockSources();
+  const writes = mockWrites();
+  assert.throws(() => onSettlement(runtime(periodEnd + 59, offMinute(15))), /settlement/);
+  onSettlement(runtime(periodEnd + 60, offMinute(15)));
+  assert.equal(publishedAtOf(writes[0].payload), periodEnd + 45);
+  assert.throws(() => onSettlement(runtime(periodEnd + 60, offMinute(40))), /margin/);
+});
+
+test('without a configured margin the settlement time is the snapshot minute, as before', () => {
+  mockSources();
+  const writes = mockWrites();
+  onSettlement(runtime(periodEnd + 60, longWindow));
+  assert.equal(publishedAtOf(writes[0].payload), periodEnd + 60);
+});
+
+for (const [name, run, now, scope] of [
+  ['settlement', onSettlement, settleNow, 'settlement'], ['mark', onMark, markNow, 'mark'],
+] as const) {
+  test(`${name} logs one PIRY_EVIDENCE line carrying the exact preimage of the evidence hash`, () => {
+    mockSources();
+    const writes = mockWrites();
+    const rt = runtime(now);
+    const logs: string[] = [];
+    rt.log = (message: string) => { logs.push(message); };
+    run(rt);
+    const lines = logs.filter(line => line.includes('PIRY_EVIDENCE'));
+    assert.equal(lines.length, 1);
+    const match = /^PIRY_EVIDENCE (0x[0-9a-f]{64}) (\{.*\})$/.exec(lines[0]);
+    assert(match, lines[0]);
+    const [, hash, json] = match;
+    assert.equal(keccak256(toBytes(json)), hash);
+    assert.equal(json, compositeSnapshot(live(), compositeTerms, now, scope).canonicalEvidence);
+    const payload = writes[0].payload;
+    assert.equal(hash, name === 'settlement' ? decodeAbiParameters(REPORT_ABI, payload)[0].evidenceHash : decodeAbiParameters(markAbi, payload)[0].evidenceHash);
+  });
+}
+
+test('the evidence line records a failed source and still hashes to the delivered evidence', () => {
+  mockSources({ shadeform: { status: 503 } });
+  const writes = mockWrites();
+  const rt = runtime(periodEnd + fullQuorumSeconds, longWindow);
+  const logs: string[] = [];
+  rt.log = (message: string) => { logs.push(message); };
+  onSettlement(rt);
+  const [, hash, json] = /^PIRY_EVIDENCE (0x[0-9a-f]{64}) (\{.*\})$/.exec(logs.find(line => line.startsWith('PIRY_EVIDENCE'))!)!;
+  assert.equal(keccak256(toBytes(json)), hash);
+  assert.equal(JSON.parse(json).sources.shadeform.reason, 'http-status');
+  assert.equal(decodeAbiParameters(REPORT_ABI, writes[0].payload)[0].evidenceHash, hash);
+});
+
+test('settlement policy keys are optional, bounded and outside the series identity', () => {
+  configSchema.parse({ ...config, settlementFullQuorumSeconds: 0, settlementMarginSeconds: 0 });
+  configSchema.parse({ ...config, settlementFullQuorumSeconds: 86400, settlementMarginSeconds: 600 });
+  for (const bad of [{ settlementFullQuorumSeconds: -1 }, { settlementFullQuorumSeconds: 86401 }, { settlementFullQuorumSeconds: 1.5 },
+    { settlementMarginSeconds: -1 }, { settlementMarginSeconds: 601 }, { settlementMarginSeconds: 0.5 }]) {
+    assert.throws(() => configSchema.parse({ ...config, ...bad }), JSON.stringify(bad));
+  }
+});
+
+test('the public live configuration carries the policy and still matches the immutable series', () => {
+  const parsed = configSchema.parse(liveConfig);
+  assert.equal(parsed.settlementFullQuorumSeconds, 14400);
+  assert.equal(parsed.settlementMarginSeconds, 15);
+  assert.equal(parsed.mark?.observedAtMarginSeconds, 15);
+  const identity = indexIdentity(parsed.terms);
+  assert.equal(identity.indexId, manifest.liveSeries.terms.indexId);
+  assert.equal(identity.specHash, manifest.liveSeries.terms.specHash);
+  assert.equal(liveConfig.terms.minSources, 3);
+  assert.equal(String(parsed.terms.periodEnd), manifest.liveSeries.terms.periodEnd);
+  assert.equal(parsed.market.toLowerCase(), manifest.liveSeries.contracts.computeMarket.address.toLowerCase());
+  assert.equal(parsed.receiver.toLowerCase(), manifest.liveSeries.contracts.simulationSettlementReceiver.address.toLowerCase());
+  assert.equal(parsed.mark?.feed.toLowerCase(), manifest.liveSeries.contracts.piryMarkFeed.address.toLowerCase());
 });

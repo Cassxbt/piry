@@ -6,6 +6,7 @@ import { configSchema, type Config } from '../config.js';
 import { demoDataset, demoTerms } from '../demo.js';
 import { REPORT_ABI } from '../report.js';
 import { onSettlement } from '../settlement.js';
+import { mockChain } from './chain.js';
 
 const config: Config = {
   executionMode: 'authenticated', sourceUrl: 'https://example.invalid/demo.json', schedule: '0 */5 * * * *',
@@ -13,7 +14,10 @@ const config: Config = {
   market: '0x2222222222222222222222222222222222222222', gasLimit: '500000', terms: demoTerms,
 };
 const now = demoDataset.publishedAt + 30;
-const runtime = (value = config) => newTestRuntime(null, { timeProvider: () => now * 1000 }, value);
+const runtime = (value = config) => {
+  mockChain(value);
+  return newTestRuntime(null, { timeProvider: () => now * 1000 }, value);
+};
 const response = (data: unknown = demoDataset, statusCode = 200) => ({
   statusCode, body: Buffer.from(JSON.stringify(data)).toString('base64'),
 });

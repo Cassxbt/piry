@@ -118,3 +118,6 @@
 # Secrets: never tracked, even if an allowlist entry above would match.
 /.env*
 /workflow/.env*
+!/workflow/preflight.ts
+!/workflow/runtime-test/chain.ts
+!/workflow/runtime-test/keeper.test.ts

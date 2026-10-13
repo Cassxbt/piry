@@ -4,7 +4,8 @@ import {
 import type { Address } from "viem";
 import { configSchema, type Config } from "./config.js";
 import { validateAkashEvidence } from "./akash.js";
-import { collectComposite, deliverReport, fetchAkashEvidence, fetchSource } from "./onchain.js";
+import { collectComposite, deliverReport, fetchAkashEvidence, fetchSource, logEvidence } from "./onchain.js";
+import { preflight } from "./preflight.js";
 import { encodeMarkReport } from "./report.js";
 import { requireValue, validateMarkDataset, type ValidatedMark } from "./validation.js";
 
@@ -36,12 +37,14 @@ export function onMark(runtime: Runtime<Config>): string {
   if (!mark) throw new Error("mark handler is not configured");
   const nowSeconds = Math.floor(runtime.now().getTime() / 1000);
   const { terms } = config;
+  preflight(runtime, config, mark.feed);
   const validated = observe(runtime, config, mark, nowSeconds);
   const payload = encodeMarkReport(validated, terms, {
     feed: mark.feed as Address, chainId: BigInt(config.chainId),
   }, mark.observedAtMarginSeconds);
   const observedAt = validated.observedAt - mark.observedAtMarginSeconds;
   runtime.log(`${terms.mode} mark ${config.executionMode}: ${validated.methodology}; price=${validated.price}; slots=${validated.slots}; observedAt=${observedAt}; evidence=${validated.evidenceHash}; payload=${payload}`);
+  logEvidence(runtime, validated);
   const outcome = deliverReport(runtime, config, payload, mark.feed, mark.gasLimit);
   return `${terms.mode} mark: ${outcome}; ${validated.methodology}; price=${validated.price}; observedAt=${observedAt}; evidence=${validated.evidenceHash}`;
 }

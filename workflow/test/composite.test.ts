@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { decodeAbiParameters, keccak256, parseAbiParameters, toBytes } from "viem";
 import { AKASH_SOURCE_URL, canonicalJson } from "../akash.js";
 import {
-  COMPOSITE_SOURCE_LABEL, compositeSnapshot, extractSource, failureReason, sourceRequest, validateCompositeEvidence,
+  COMPOSITE_SOURCE_LABEL, compositeSnapshot, extractSource, failureReason, requireSettlementQuorum, sourceRequest, validateCompositeEvidence,
   type CompositeSource, type SourceResult,
 } from "../composite.js";
 import { demoTerms } from "../demo.js";
@@ -417,4 +417,39 @@ test("composite reports cannot relabel validated evidence, price, terms or time"
   assert.throws(() => encodeMarketReport(early, compositeTerms, settlementDestination), /settlement/);
   assert.throws(() => encodeMarkReport({ ...early, observedAt: early.observedAt + 1 }, compositeTerms, markDestination), /evidence|binding/);
   assert.throws(() => encodeMarketReport(result, { ...compositeTerms, mode: "LIVE" } as never, settlementDestination));
+});
+
+test("settlement needs every source until the full-quorum window ends, then the pinned minimum", () => {
+  const window = 14400;
+  const quorum = (sources: number, at: number) => () => requireSettlementQuorum(sources, compositeTerms, at, window);
+  for (const at of [periodEnd - 1, periodEnd, periodEnd + 120, periodEnd + window - 1]) {
+    assert.throws(quorum(3, at), /settlement needs 4 valid sources until 14400s after expiry, got 3/, String(at));
+    quorum(4, at)();
+  }
+  for (const at of [periodEnd + window, periodEnd + window + 1, periodEnd + 86400]) {
+    quorum(3, at)();
+    quorum(4, at)();
+  }
+  assert.throws(quorum(2, periodEnd + window), /settlement needs 3 valid sources/);
+});
+
+test("a zero window leaves only the pinned minimum; the window never relaxes it", () => {
+  requireSettlementQuorum(3, compositeTerms, periodEnd, 0);
+  assert.throws(() => requireSettlementQuorum(2, compositeTerms, periodEnd, 0), /needs 3/);
+  assert.throws(() => requireSettlementQuorum(3, { ...compositeTerms, minSources: 4 }, periodEnd + 999999, 0), /needs 4/);
+});
+
+test("settlement report time may be backdated by a margin without touching the evidence", () => {
+  const result = settle(live(), compositeTerms, periodEnd + 60);
+  const reportTime = (margin?: number) =>
+    decodeAbiParameters(parseAbiParameters("address,uint256,bytes32,bytes32,uint8,uint64,uint64,uint256,uint64,bytes32"),
+      encodeMarketReport(result, compositeTerms, settlementDestination, margin))[8];
+  assert.equal(reportTime(), BigInt(periodEnd + 60));
+  assert.equal(reportTime(0), BigInt(periodEnd + 60));
+  assert.equal(reportTime(15), BigInt(periodEnd + 45));
+  assert.equal(reportTime(60), BigInt(periodEnd));
+  for (const margin of [-1, 1.5, Number.NaN, 61, 600]) {
+    assert.throws(() => encodeMarketReport(result, compositeTerms, settlementDestination, margin), /margin/, String(margin));
+  }
+  assert.throws(() => encodeMarketReport({ ...result, publishedAt: result.publishedAt + 15 }, compositeTerms, settlementDestination, 15), /evidence|binding/);
 });

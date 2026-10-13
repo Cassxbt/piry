@@ -17,6 +17,7 @@ export type SourceRequest = { url: string; body?: string; maxBytes: number };
 // The config's source fields carry this label for COMPOSITE: every URL is fixed below, so config cannot redirect a source.
 export const COMPOSITE_SOURCE_LABEL = "piry:composite-h100-sxm-median-v1";
 const VERDA_MAX_BYTES = 200_000;
+export const DEFAULT_FULL_QUORUM_SECONDS = 14400;
 
 export function sourceRequest(source: CompositeSource, terms: CompositeTerms): SourceRequest {
   const rules = terms.sources;
@@ -147,6 +148,15 @@ export function compositeSnapshot(
     price: median(values), publishedAt: observedAt, evidenceHash: keccak256(toBytes(canonicalEvidence)), canonicalEvidence,
     observedAt, slots: values.length, methodology: COMPOSITE_METHODOLOGY,
   };
+}
+
+// With two price clusters one missing source moves the median a long way, so settlement waits for every source until
+// fullQuorumSeconds after expiry and only then falls back to the pinned terms.minSources. This is delivery policy, not
+// part of the spec hash.
+export function requireSettlementQuorum(validSources: number, terms: CompositeTerms, nowSeconds: number, fullQuorumSeconds: number): void {
+  const required = nowSeconds - terms.periodEnd < fullQuorumSeconds ? COMPOSITE_SOURCES.length : terms.minSources;
+  requireValue(validSources >= required,
+    `settlement needs ${required} valid sources until ${fullQuorumSeconds}s after expiry, got ${validSources}`);
 }
 
 // Rebuilds the snapshot from the entries inside the evidence, so a mismatch with the terms, the time or the

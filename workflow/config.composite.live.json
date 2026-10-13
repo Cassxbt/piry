@@ -7,6 +7,8 @@
   "receiver": "0x6B15565bFC329edEC5ca2BAE96fB792C0429a3A1",
   "market": "0xe3Aab2F36601cEC8d217DA5497fC3FE00ed22538",
   "gasLimit": "300000",
+  "settlementFullQuorumSeconds": 14400,
+  "settlementMarginSeconds": 15,
   "mark": {
     "feed": "0xE4B79233F8ac4804BABfD6bd065aA6596b0EbE5e",
     "sourceUrl": "piry:composite-h100-sxm-median-v1",

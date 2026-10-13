@@ -18,6 +18,8 @@ export const configSchema = z.object({
   receiver: address,
   market: address,
   gasLimit,
+  settlementFullQuorumSeconds: z.number().int().min(0).max(86400).optional(),
+  settlementMarginSeconds: z.number().int().min(0).max(600).optional(),
   mark: z.object({ feed: address, sourceUrl, schedule, gasLimit, observedAtMarginSeconds: z.number().int().min(0).max(600) }).strict().optional(),
   terms: z.discriminatedUnion("mode", [
     z.object({

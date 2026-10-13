@@ -7,6 +7,8 @@
   "receiver": "REPLACE_WITH_SIMULATION_SETTLEMENT_RECEIVER_ADDRESS",
   "market": "REPLACE_WITH_MARKET_ADDRESS",
   "gasLimit": "300000",
+  "settlementFullQuorumSeconds": 14400,
+  "settlementMarginSeconds": 15,
   "mark": {
     "feed": "REPLACE_WITH_MARK_FEED_ADDRESS",
     "sourceUrl": "piry:composite-h100-sxm-median-v1",

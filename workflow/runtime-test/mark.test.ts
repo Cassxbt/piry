@@ -10,6 +10,7 @@ import { onMark } from '../mark.js';
 import { indexIdentity, validateMarkDataset, validatePartialDataset } from '../validation.js';
 import { onSettlement } from '../settlement.js';
 import { partialDataset, spotDataset } from '../test/fixtures.js';
+import { mockChain } from './chain.js';
 
 const markFeed = '0x3333333333333333333333333333333333333333';
 const config: Config = {
@@ -20,7 +21,10 @@ const config: Config = {
 };
 const data = partialDataset(2);
 const now = data.publishedAt + 30;
-const runtime = (value = config) => newTestRuntime(null, { timeProvider: () => now * 1000 }, value);
+const runtime = (value = config) => {
+  mockChain(value);
+  return newTestRuntime(null, { timeProvider: () => now * 1000 }, value);
+};
 const selector = EVMClient.SUPPORTED_CHAIN_SELECTORS['monad-testnet'];
 const response = (body: unknown, statusCode = 200) => ({
   statusCode, body: Buffer.from(typeof body === 'string' ? body : JSON.stringify(body)).toString('base64'),
@@ -81,7 +85,10 @@ for (const failure of ['http', 'missing', 'in-progress', 'stale', 'duplicate', '
 }
 
 const spot = spotDataset();
-const spotRuntime = () => newTestRuntime(null, { timeProvider: () => (spot.publishedAt + 30) * 1000 }, config);
+const spotRuntime = () => {
+  mockChain(config);
+  return newTestRuntime(null, { timeProvider: () => (spot.publishedAt + 30) * 1000 }, config);
+};
 
 test('SDK mark handler publishes the pre-period spot price before the period starts', () => {
   mockSource(spot);
@@ -155,6 +162,7 @@ test('settlement handler is unaffected by a mark configuration', () => {
     return { txStatus: 'TX_STATUS_SUCCESS', receiverContractExecutionStatus: 'RECEIVER_CONTRACT_EXECUTION_STATUS_SUCCESS' };
   };
   const settleNow = (demoDataset.publishedAt + 30) * 1000;
+  mockChain(config);
   assert.match(onSettlement(newTestRuntime(null, { timeProvider: () => settleNow }, config)), /independently verify/);
   assert.equal(writes, 1);
 });

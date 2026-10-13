@@ -11,7 +11,9 @@ import {
   type CompositeSource, type Observation, type SourceResult,
 } from "./composite.js";
 import { deliveryOutcome } from "./delivery.js";
-import { COMPOSITE_SOURCES, MAX_RESPONSE_BYTES, type AkashTerms, type CompositeTerms, type ValidatedMark } from "./validation.js";
+import {
+  COMPOSITE_SOURCES, MAX_RESPONSE_BYTES, type AkashTerms, type CompositeTerms, type ValidatedIndex, type ValidatedMark,
+} from "./validation.js";
 
 export function fetchSource(
   requester: HTTPSendRequester, url: string, { body, maxBytes = MAX_RESPONSE_BYTES }: { body?: string; maxBytes?: number } = {},
@@ -63,6 +65,11 @@ export function collectComposite(runtime: Runtime<Config>, terms: CompositeTerms
     }
   }
   return compositeSnapshot(results, terms, nowSeconds, scope);
+}
+
+// One delimited line for the keeper to persist: the hash is keccak256 of exactly the bytes after the second space.
+export function logEvidence(runtime: Runtime<Config>, { evidenceHash, canonicalEvidence }: ValidatedIndex): void {
+  runtime.log(`PIRY_EVIDENCE ${evidenceHash} ${canonicalEvidence}`);
 }
 
 export function deliverReport(

@@ -12,6 +12,7 @@ import { REPORT_ABI } from '../report.js';
 import { onSettlement } from '../settlement.js';
 import { indexIdentity } from '../validation.js';
 import { akashTerms, h100, liveGpuPrices, periodEnd, type Body } from '../test/akash-fixtures.js';
+import { mockChain } from './chain.js';
 
 const markFeed = '0x3333333333333333333333333333333333333333';
 const config: Config = {
@@ -23,7 +24,10 @@ const config: Config = {
 const settleNow = periodEnd + 95;
 const markNow = periodEnd - 6 * 3600 + 17;
 const selector = EVMClient.SUPPORTED_CHAIN_SELECTORS['monad-testnet'];
-const runtime = (now: number, value = config) => newTestRuntime(null, { timeProvider: () => now * 1000 }, value);
+const runtime = (now: number, value = config) => {
+  mockChain(value);
+  return newTestRuntime(null, { timeProvider: () => now * 1000 }, value);
+};
 const response = (body: unknown, statusCode = 200) => ({
   statusCode, body: Buffer.from(typeof body === 'string' ? body : JSON.stringify(body)).toString('base64'),
 });

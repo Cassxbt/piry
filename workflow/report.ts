@@ -41,17 +41,23 @@ function recheckSnapshot(validated: ValidatedIndex, terms: SnapshotTerms, scope:
     : validateCompositeEvidence(canonicalEvidence, terms, publishedAt, scope);
 }
 
+// publishedAtMarginSeconds backdates only the report's own time, like the mark path, so it cannot lead the chain's clock;
+// the evidence keeps the snapshot minute and is validated unchanged. The market rejects a report time before expiry.
 export function encodeMarketReport(
   validated: ValidatedIndex, terms: AnyTerms, destination: { market: Address; chainId: bigint },
+  publishedAtMarginSeconds = 0,
 ): Hex {
   requireDestination(destination.market, destination.chainId);
   requireBound(terms.mode === "DEMO"
     ? validateDataset(evidenceDataset(validated), terms, validated.publishedAt)
     : recheckSnapshot(validated, terms, "settlement"), validated);
+  if (!Number.isSafeInteger(publishedAtMarginSeconds) || publishedAtMarginSeconds < 0) throw new Error("invalid publication time margin");
+  const publishedAt = validated.publishedAt - publishedAtMarginSeconds;
+  if (publishedAt < terms.periodEnd) throw new Error("settlement time margin puts the report before expiry");
   return encodeAbiParameters(REPORT_ABI, [{
     ...destination, ...indexIdentity(terms), priceDecimals: terms.priceDecimals,
     periodStart: BigInt(terms.periodStart), periodEnd: BigInt(terms.periodEnd),
-    price: validated.price, publishedAt: BigInt(validated.publishedAt), evidenceHash: validated.evidenceHash,
+    price: validated.price, publishedAt: BigInt(publishedAt), evidenceHash: validated.evidenceHash,
   }]);
 }
 
