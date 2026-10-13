@@ -92,6 +92,7 @@
     "longMarket": "0xe2393d5f15523931e59f340cffebcde30fa7db1a",
     "shortMarket": "0xd93db02c88d645e669a3965cd46e72cca137f193"
   },
+  "faucet": "0x6ee33fc6c23269463b7c824a34fea49acaa0c5d6",
   "teamAddresses": ["0x66d71a8612Fbf6ab69340Bf82aB431e1Ad30b5c3"],
   "tractionFromBlock": 70515000,
   "evidenceBase": "/evidence/monad-testnet",

@@ -13,6 +13,7 @@ import { Cites } from "../components/site/Cites";
 import { Reveal } from "../components/site/motion";
 import { SiteLink } from "../components/site/SiteLink";
 import { config } from "../config";
+import { links } from "../config/links";
 import { whyNow } from "../content/whyNow";
 import { useLiveSeries } from "../hooks/live";
 import { usePage } from "../hooks/usePage";
@@ -225,6 +226,21 @@ export default function Home() {
           </Reveal>
           <Audience />
           <p className="block-link"><SiteLink to="/market" className="text-link">Who the first users are, and how Piry differs from perps</SiteLink></p>
+        </div>
+      </section>
+
+      <section className="block block--tight" aria-labelledby="built-by-title">
+        <div className="wrap">
+          <Reveal className="built-by">
+            <p className="mono kicker-line"><i className="sq" aria-hidden />BUILT BY</p>
+            <h2 className="sr-only" id="built-by-title">Built by cassxbt</h2>
+            <p>Built by <strong>cassxbt</strong> — a solo full-stack and Solidity engineer. A perps trader who has been liquidated on positions that were right a week later, and who pays a floating GPU bill every month: Piry is the hedge its builder wanted.</p>
+            <p className="block-link">
+              <SiteLink to="/about" className="text-link">Why a trader built Piry</SiteLink>
+              <a className="text-link" href={links.x} target="_blank" rel="noreferrer">X @cassxbt</a>
+              <a className="text-link" href={links.github} target="_blank" rel="noreferrer">GitHub</a>
+            </p>
+          </Reveal>
         </div>
       </section>
 

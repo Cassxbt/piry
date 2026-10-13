@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "label": "Judge wallet 1",
+    "address": "0xCf82e5491BE3DAE0a93e43b7085a23D96C58be9F"
+  },
+  {
+    "label": "Judge wallet 2",
+    "address": "0x30627D981A566ABd5130561bbbd28BaD87f113FF"
+  },
+  {
+    "label": "Judge wallet 3",
+    "address": "0xD4E1410661CC5EFb0df72Edc6df1365436C5058D"
+  }
+]

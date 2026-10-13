@@ -460,3 +460,13 @@ html { scroll-padding-top: calc(var(--header-h) + 56px); }
 .lp-short { margin: 10px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 13px; color: var(--ink-3); }
 .lp-short b { color: var(--ink); font-weight: 500; font-size: 15px; }
 .lp-short small { font-size: 12px; }
+
+.about-copy { display: grid; gap: 24px; max-width: 64ch; }
+.about-copy p { font-size: 17px; line-height: 1.7; color: var(--ink-2); text-wrap: pretty; }
+.about-sub { font-size: 16px; font-weight: 600; margin-bottom: 12px; }
+.partner-note { max-width: 64ch; margin-top: 40px; padding: 24px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--sheet); }
+.partner-note blockquote { font-family: var(--font-display); font-weight: 300; font-size: 22px; line-height: 1.4; }
+.partner-note figcaption { margin-top: 12px; }
+.built-by { display: grid; gap: 12px; max-width: 64ch; padding-top: 28px; border-top: 1px solid var(--rule); }
+.built-by p:not(.kicker-line) { font-size: 16px; line-height: 1.6; color: var(--ink-2); }
+.built-by .block-link { margin-top: 4px; }

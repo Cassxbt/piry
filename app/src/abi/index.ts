@@ -4,6 +4,7 @@ export {
   claimTokenAbi,
   computeMarketAbi,
   markFeedAbi,
+  piryFaucetAbi,
   shortFeedAbi,
   settlementReceiverAbi,
   simulationReceiverAbi,

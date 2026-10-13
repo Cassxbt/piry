@@ -1,28 +1,11 @@
 import { BlockHead } from "../components/site/Frame";
+import { Milestone } from "../components/site/Milestone";
 import { Reveal } from "../components/site/motion";
 import { SiteLink } from "../components/site/SiteLink";
 import { config } from "../config";
 import { demoSubject, liveSubject, useSeries } from "../hooks/live";
 import { usePage } from "../hooks/usePage";
 import { utc } from "../lib/format";
-
-type Phase = "done" | "next" | "later";
-const PHASE_LABEL: Record<Phase, string> = { done: "Done", next: "Next", later: "Later" };
-
-function Milestone({ phase, when, title, children, i }: { phase: Phase; when: string; title: string; children: React.ReactNode; i: number }) {
-  return (
-    <li className={`milestone milestone--${phase}`}>
-      <Reveal delay={Math.min(i, 4) * 0.04}>
-        <div className="milestone-head">
-          <span className={`chip ${phase === "done" ? "ok" : phase === "next" ? "warn" : ""} plain`}>{PHASE_LABEL[phase]}</span>
-          <span className="mono milestone-when">{when}</span>
-        </div>
-        <h3>{title}</h3>
-        <p>{children}</p>
-      </Reveal>
-    </li>
-  );
-}
 
 export default function Roadmap() {
   usePage("Roadmap", "How Piry builds liquidity on Kuru, where it stands legally and operationally, and the milestones from testnet to production.");

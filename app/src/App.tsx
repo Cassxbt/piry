@@ -11,6 +11,7 @@ const BuiltOn = lazy(() => import("./pages/BuiltOn"));
 const Market = lazy(() => import("./pages/Market"));
 const AppPage = lazy(() => import("./pages/AppPage"));
 const EvidencePage = lazy(() => import("./pages/EvidencePage"));
+const About = lazy(() => import("./pages/About"));
 const Roadmap = lazy(() => import("./pages/Roadmap"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -28,6 +29,7 @@ export function App() {
               <Route path="market" element={<Market />} />
               <Route path="app" element={<AppPage />} />
               <Route path="evidence" element={<EvidencePage />} />
+              <Route path="about" element={<About />} />
               <Route path="roadmap" element={<Roadmap />} />
               <Route path="*" element={<NotFound />} />
             </Route>

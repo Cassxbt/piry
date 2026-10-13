@@ -102,6 +102,8 @@ export interface NetworkSettings {
   };
   evidenceBase: string;
   markStaleSeconds: number;
+  // PiryFaucet: drips test quote token once per address. Absent where there is no faucet.
+  faucet?: Address;
   // Wallets that count as team test activity on the traction panel; every other wallet is external.
   teamAddresses?: Address[];
   // First block to scan for trades and pair events: the Piry markets' deployment.

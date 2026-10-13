@@ -2,6 +2,9 @@ import { useState } from "react";
 import { OrderBook } from "../components/OrderBook";
 import { Pending } from "../components/Pending";
 import { Section } from "../components/Section";
+import { FaucetCard } from "../components/FaucetCard";
+import { useQuoteBalance } from "../hooks/faucet";
+import { useViewer } from "../hooks/viewer";
 import { config, primarySubject } from "../config";
 import { useChainNow, useMark, useMarket, useSeriesShortMark } from "../hooks/chain";
 import { kuruMarketFor, useKuruBook, type KuruSide } from "../hooks/kuru";
@@ -45,6 +48,8 @@ function KuruPending() {
 }
 
 export function Trade() {
+  const viewer = useViewer();
+  const noUsdc = useQuoteBalance(viewer.connected ? viewer.address : undefined).data === 0n && config.faucet !== undefined;
   const market = useMarket();
   const snapshot = market.data;
   const now = useChainNow(snapshot, market.dataUpdatedAt);
@@ -104,6 +109,8 @@ export function Trade() {
               <button type="button" aria-pressed={side === "short"} onClick={() => setSide("short")}>{snapshot.claims.shortSymbol}/{config.kuru.quoteSymbol}</button>
             </div>
           ) : null}
+
+          {noUsdc ? <FaucetCard /> : null}
 
           <div className="trade">
             <div className="panel">

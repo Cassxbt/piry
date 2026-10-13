@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import type { Address } from "viem";
 import { chain, config } from "../config";
 import judgeAccess from "../config/judge-access.json";
+import { useWalletBalances, type WalletBalances } from "../hooks/faucet";
+import { fixed } from "../lib/format";
 import { parseJudgeWallets, type JudgeWallet } from "../lib/judge";
+import { FaucetCard } from "./FaucetCard";
 
 interface Network {
   name: string;
@@ -28,7 +32,17 @@ function CopyButton({ text, label }: { text: string; label: string }) {
   );
 }
 
-export function JudgeAccessView({ wallets, network }: { wallets: JudgeWallet[]; network: Network }) {
+export function JudgeAccessView({
+  wallets,
+  network,
+  balances,
+  faucet,
+}: {
+  wallets: JudgeWallet[];
+  network: Network;
+  balances?: Record<Address, WalletBalances>;
+  faucet?: ReactNode;
+}) {
   return (
     <div className="judge-access brackets" id="judge-access">
       <p className="mono kicker-line"><i className="sq" aria-hidden />FOR JUDGES: TRY PIRY IN 2 MINUTES</p>
@@ -48,15 +62,22 @@ export function JudgeAccessView({ wallets, network }: { wallets: JudgeWallet[]; 
         <p className="callout warn">Judge wallets are listed in the submission form, with their access instructions.</p>
       ) : (
         <ul className="judge-wallets">
-          {wallets.map((w) => (
-            <li key={w.address}>
-              <span className="judge-label">{w.label}</span>
-              <span className="mono judge-addr">{w.address}</span>
-              <CopyButton text={w.address} label={`${w.label} address`} />
-            </li>
-          ))}
+          {wallets.map((w) => {
+            const bal = balances?.[w.address];
+            return (
+              <li key={w.address}>
+                <span className="judge-label">{w.label}</span>
+                <span className="mono judge-addr">{w.address}</span>
+                <CopyButton text={w.address} label={`${w.label} address`} />
+                <span className="mono judge-bal">
+                  {bal ? `${fixed(bal.mon, 18, 3)} ${network.symbol} · ${fixed(bal.usdc, config.kuru.quoteDecimals, 2)} ${config.kuru.quoteSymbol}` : "balances reading"}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
+      {faucet}
       <div className="judge-warn" role="note">
         <strong>Testnet-only. Never put real funds here.</strong> Private keys for these testnet-only wallets are in the submission form&rsquo;s access instructions. Do not import them into a wallet that holds real assets, and do not send anything of value to these addresses.
       </div>
@@ -66,9 +87,13 @@ export function JudgeAccessView({ wallets, network }: { wallets: JudgeWallet[]; 
 }
 
 export function JudgeAccess() {
+  const wallets = parseJudgeWallets(judgeAccess);
+  const balances = useWalletBalances(wallets.map((w) => w.address));
   return (
     <JudgeAccessView
-      wallets={parseJudgeWallets(judgeAccess)}
+      wallets={wallets}
+      balances={balances.data}
+      faucet={<FaucetCard />}
       network={{ name: chain.name, id: chain.id, rpcUrl: config.chain.rpcUrl, symbol: config.chain.nativeSymbol }}
     />
   );

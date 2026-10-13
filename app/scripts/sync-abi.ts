@@ -14,6 +14,7 @@ const contracts = [
   ["simulationReceiverAbi", "SimulationSettlementReceiver.sol/SimulationSettlementReceiver.json"],
   ["markFeedAbi", "PiryMarkFeed.sol/PiryMarkFeed.json"],
   ["shortFeedAbi", "PiryShortFeed.sol/PiryShortFeed.json"],
+  ["piryFaucetAbi", "PiryFaucet.sol/PiryFaucet.json"],
 ] as const;
 
 const entries: string[] = [];

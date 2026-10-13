@@ -102,6 +102,8 @@
 !/scripts/keeper.sh
 !/scripts/test-trades.ts
 !/scripts/test-trades.test.ts
+!/contracts/PiryFaucet.sol
+!/test/PiryFaucet.t.sol
 !/plugins/
 /plugins/*
 !/plugins/metamask-piry/
