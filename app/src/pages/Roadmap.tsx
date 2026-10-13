@@ -60,16 +60,19 @@ export default function Roadmap() {
             </Milestone>
             <Milestone i={2} phase={kuruListed ? "done" : "next"} when={kuruListed ? "Live on Monad testnet" : "Pending Kuru"} title="PIRY-L / USDC and PIRY-S / USDC on Kuru">
               {kuruListed
-                ? "Both claim markets are listed on Kuru's on-chain order book and seeded with resting bids and asks. The trade step reads the real books, the order ticket and the Kuru trading balance."
+                ? "Both claim markets are listed on Kuru's on-chain order book, each seeded with 10 resting orders. All of that resting liquidity is the team's own seeded orders; there are no independent market makers yet. The trade step reads the real books, the order ticket and the Kuru trading balance."
                 : "Kuru deploys the markets on request. Once their addresses are set, the trade step goes live: the books, the order ticket and the trading balance."}
             </Milestone>
             <Milestone i={3} phase="later" when="When CRE deploy access is enabled" title="DON-signed delivery">
               Move from the simulation forwarder and its operator wallet to the DON-signed forwarder with a receiver pinned to the workflow ID. The strict receiver is written and tested; it is not deployed.
             </Milestone>
-            <Milestone i={4} phase="later" when="Before any real funds" title="A licensed index">
+            <Milestone i={4} phase="later" when="After the first live series" title="Monthly average-price (TWAP) series">
+              A series that settles on the average of the composite across the whole month, which matches a month of hourly billing. The live series settles on one reading (the first valid run after the period ends), so it hedges the rate you will be re-quoted on settlement day.
+            </Milestone>
+            <Milestone i={5} phase="later" when="Before any real funds" title="A licensed index">
               Replace public endpoints with a licensed feed under a written agreement, and run both side by side for a full series so holders can see the difference first.
             </Milestone>
-            <Milestone i={5} phase="later" when="Before any real funds" title="Audit, and legal review">
+            <Milestone i={6} phase="later" when="Before any real funds" title="Audit, and legal review">
               An independent audit of the contracts, and legal review in each jurisdiction a mainnet product would serve. Piry would not launch without either.
             </Milestone>
           </ol>
@@ -83,8 +86,8 @@ export default function Roadmap() {
           </Reveal>
           <ol className="plan-list">
             {[
-              ["Seed both sides from collateral", "Mint pairs and quote both legs from one balance sheet: long asks and short bids around the mark. Inventory comes from collateral, not from borrowing, so seeding needs capital but no leverage."],
-              ["Anchor quotes to the feed", "Quote around the PiryMarkFeed value, so a first buyer sees a price that is close to fair and a maker can tell when it has moved. The feed updates every 15 minutes."],
+              ["Seed both sides from collateral", "Today this is done: the resting liquidity on both books is the team's seeded orders, 10 per market. Mint pairs and quote both legs from one balance sheet: long asks and short bids around the mark. Inventory comes from collateral, not from borrowing, so seeding needs capital but no leverage."],
+              ["Anchor quotes to the feed", "Quote around the PiryMarkFeed value, so a first buyer sees a price that is close to fair and a maker can tell when it has moved. The feed is checked every 5 minutes and published when the index moves, and at least every 20 minutes."],
               ["Maker incentives", "Design them with Kuru. Its book already has maker fees and application fees to start from; no incentive is designed or promised yet."],
               ["Recruit the short side", "GPU owners and lenders are the natural short. No partner is signed. The first conversations with them are the milestone that matters most."],
               ["Roll the series", "Run successive periods so exposure can be rolled, and keep a short fast series for demonstrations."],

@@ -307,3 +307,39 @@ a.src:hover { color: var(--ink); text-decoration: underline; }
 .subject-title { font-family: var(--font-display); font-weight: 340; font-size: 28px; letter-spacing: -0.015em; line-height: 1.15; }
 .countdown { display: grid; gap: 2px; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--paper); }
 .countdown .num { font-size: 22px; letter-spacing: -0.01em; }
+
+.term { border-bottom: 1px dotted var(--ink-3); cursor: help; position: relative; white-space: nowrap; }
+.term:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.term-tip {
+  position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 20; width: max-content; max-width: min(280px, 80vw);
+  padding: 8px 10px; border: 1px solid var(--rule-strong); border-radius: var(--radius); background: var(--paper); color: var(--ink);
+  font: 400 12.5px/1.45 var(--font-ui); letter-spacing: 0; text-transform: none; white-space: normal; text-align: left;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.12); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 120ms var(--ease);
+}
+.term:hover .term-tip, .term:focus .term-tip, .term:focus-within .term-tip { opacity: 1; visibility: visible; }
+
+.judge-access { display: grid; gap: 14px; padding: 22px var(--gutter); border: 1px solid var(--rule-strong); border-radius: var(--radius); background: var(--sunk); }
+.judge-steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.judge-steps strong { color: var(--ink); }
+.judge-wallets { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.judge-wallets li { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 10px; align-items: center; }
+.judge-label { font-weight: 600; grid-column: 1 / -1; font-size: 13px; }
+.judge-addr, .judge-key { font-size: 12px; overflow-wrap: anywhere; min-width: 0; }
+.judge-warn { border: 2px solid var(--short); padding: 12px 14px; border-radius: var(--radius); font-size: 15px; line-height: 1.45; color: var(--ink); }
+.timing-note, .glossary-line { max-width: 78ch; }
+.glossary-line { margin-top: 14px; }
+.judge-wrap { margin-top: 28px; }
+
+.side-toggle { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.side-thesis { max-width: 78ch; margin-bottom: 16px; }
+.hedge-study { display: grid; gap: 14px; }
+
+.traction { display: grid; gap: 12px; }
+.traction-kicker { margin: 24px 0 8px; font-size: 11px; letter-spacing: 0.1em; color: var(--ink-3); }
+
+.ticket-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.ticket-fieldset:disabled { opacity: 0.55; }
+
+.traction-tile { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 24px; }
+
+.index-range { margin-top: 12px; }

@@ -79,7 +79,7 @@ describe("ScenarioChart", () => {
   it("leads with the net bill at the scrubbed price and keeps every number in a table view", () => {
     const [min, max] = chartDomain(2.5, 4.5, 3.39);
     render(<ScenarioChart exposure={exposure} claims={claims} premium={0n} today={3.39} scrub={3.5} domain={[min, max]} onScrub={() => {}} />);
-    expect(screen.getByText(/Monthly bill if the index settles at \$3\.50/)).toBeTruthy();
+    expect(screen.getByText(/Bill if the index settles at \$3\.50/)).toBeTruthy();
     expect(screen.getByText(/Table view/)).toBeTruthy();
     expect(screen.getAllByText("$2,000").length).toBeGreaterThan(0);
   });

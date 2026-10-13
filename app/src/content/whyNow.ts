@@ -29,7 +29,7 @@ export const whyNow: WhyNowItem[] = [
   },
   {
     fig: "H100",
-    headline: "Prices swing.",
+    headline: "Ornn's index swings.",
     text: "Ornn's index showed H100 rental prices spike in early May 2026 and then decline, with on-demand quotes ranging from $1.38 to $11.01 an hour across providers.",
     sources: [{ label: "Crypto Briefing on Ornn data, 27 May 2026", url: "https://cryptobriefing.com/h100-rental-prices-slide-ornn-ai/" }],
   },

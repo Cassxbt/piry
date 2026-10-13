@@ -1,6 +1,9 @@
 import type { Phase } from "./reads";
 import { usd } from "./format";
 
+// How the keeper refreshes the mark feed; Kuru's withdrawal limiter rejects a price older than 30 minutes.
+export const MARK_CADENCE = "checked every 5 minutes; published when the index moves, and at least every 20 minutes so Kuru's 30-minute freshness check always passes";
+
 export const DELIVERY = {
   simulation: {
     short: "CRE CLI simulation, operator-gated",

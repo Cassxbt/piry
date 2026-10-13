@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { GlossaryLine } from "../components/site/Term";
+import { links } from "../config/links";
 import { BlockHead, Frame } from "../components/site/Frame";
 import { CountUp, Reveal } from "../components/site/motion";
 import { SiteLink } from "../components/site/SiteLink";
@@ -6,7 +8,7 @@ import { chain, config, explorer } from "../config";
 import { useBlockNumber } from "../hooks/chain";
 import { liveSubject, useLiveSeries } from "../hooks/live";
 import { usePage } from "../hooks/usePage";
-import { DELIVERY } from "../lib/labels";
+import { DELIVERY, MARK_CADENCE } from "../lib/labels";
 import { shortAddress } from "../lib/format";
 import { hostOf } from "../lib/logsClient";
 
@@ -119,6 +121,14 @@ export default function BuiltOn() {
             title={<>Three pieces of infrastructure, <em>each doing one job</em></>}
             lede="Monad is fast enough to host the book and the marks, Kuru is where the claim trades, and Chainlink CRE is how a number from outside the chain becomes a settlement the contract will accept."
           />
+          <GlossaryLine />
+          {links.repo || links.videos ? (
+            <p className="sub project-links">
+              {links.repo ? <a href={links.repo} target="_blank" rel="noreferrer">Source code on GitHub</a> : null}
+              {links.repo && links.videos ? " · " : null}
+              {links.videos ? <a href={links.videos} target="_blank" rel="noreferrer">Videos</a> : null}
+            </p>
+          ) : null}
         </div>
       </header>
 
@@ -131,7 +141,7 @@ export default function BuiltOn() {
         facts={<MonadFacts />}
       >
         <ul className="plain-list">
-          <li><strong>Marks every 15 minutes.</strong> The mark feed takes a new round on a short cadence, so the price an exchange sees is never hours old.</li>
+          <li><strong>Marks kept fresh.</strong> The index is {MARK_CADENCE}. The price an exchange sees is never hours old.</li>
           <li><strong>An on-chain book.</strong> Kuru&rsquo;s order book runs as contracts on the same chain as the claims, so a fill and a redemption are the same kind of event.</li>
           <li><strong>Settlement is a transaction.</strong> The report, the check and the payout all happen on-chain, in blocks you can read.</li>
         </ul>
@@ -148,8 +158,8 @@ export default function BuiltOn() {
       >
         <ul className="plain-list">
           <li><strong>A real book, not a pool.</strong> Hedgers and owners post and take at prices they choose, with limit orders, market orders and cancellations, all on-chain.</li>
-          <li><strong>Kuru needs a price.</strong> Its custody requires a fresh price for any token that is deposited or withdrawn. The PiryMarkFeed exists for that: a Chainlink-style feed that reports the long claim&rsquo;s value in dollars, with the answer floored at one unit so a worthless claim stays withdrawable.</li>
-          <li><strong>Where it stands.</strong> The Piry market is not listed yet; Kuru deploys markets on request. The app already reads a Kuru book, places and cancels orders and withdraws, and that flow ran end to end against Kuru&rsquo;s contracts on a local fork of Monad testnet. It has not yet run against a Piry market.</li>
+          <li><strong>The book sets the price; the feed is for custody.</strong> Kuru&rsquo;s order book prices the claim, not the feed. Kuru&rsquo;s custody needs a fresh price source to value any token that is deposited or withdrawn, and the PiryMarkFeed is that source: a Chainlink-style feed that reports the long claim&rsquo;s value in dollars, with the answer floored at one unit so a worthless claim stays withdrawable.</li>
+          <li><strong>Where it stands.</strong> The markets are live on Monad testnet: PIRY-L / USDC{config.kuru.longMarket ? <> (<span className="mono">{shortAddress(config.kuru.longMarket)}</span>)</> : null} and PIRY-S / USDC{config.kuru.shortMarket ? <> (<span className="mono">{shortAddress(config.kuru.shortMarket)}</span>)</> : null}. Each is seeded with 10 team orders, so today&rsquo;s resting liquidity is ours, not independent makers&rsquo;. The app reads the books, places and cancels orders, and withdraws against them.</li>
         </ul>
       </Band>
 
@@ -158,11 +168,11 @@ export default function BuiltOn() {
         kicker="Chainlink CRE"
         index="3/3"
         title={<>A number from outside the chain, <em>that the contract will accept</em></>}
-        lede="One CRE workflow has two handlers: a mark handler on a 15-minute schedule and a settlement handler at period end. Both read the same four public sources."
+        lede="One CRE workflow has two handlers: a mark handler on a short schedule and a settlement handler for the end of the period. Both read the same four public sources."
         facts={<CreFacts />}
       >
         <ul className="plain-list">
-          <li><strong>Four external APIs.</strong> Akash, RunPod, Verda and Shadeform, each read with its own call and its own consensus among nodes, then reduced to a median.</li>
+          <li><strong>Four external APIs.</strong> Akash, RunPod, Verda and Shadeform, each read with its own call, then reduced to a median. The CRE workflow is run today through the CRE CLI simulation (one node) by our keeper ({MARK_CADENCE}); production runs the same workflow on a DON, whose nodes reach consensus on each reading.</li>
           <li><strong>A report the contract can check.</strong> The report names its chain, market, index, spec and period, and the market refuses anything that does not match, is stale, or arrives twice.</li>
           <li><strong>Refusals are part of the product.</strong> Each refused report is on the evidence page, because the forwarder reports success even when the receiver reverts, so the app reads events instead of a status.</li>
         </ul>

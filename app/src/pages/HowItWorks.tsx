@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ForwardLock } from "../components/live/ForwardLock";
+import { TimingNote } from "../components/live/TimingNote";
+import { GlossaryLine } from "../components/site/Term";
 import { Stage } from "../components/stages/Stages";
 import { BlockHead } from "../components/site/Frame";
 import { Reveal } from "../components/site/motion";
@@ -6,6 +9,7 @@ import { SiteLink } from "../components/site/SiteLink";
 import { Pending } from "../components/Pending";
 import { Src } from "../components/Src";
 import { config } from "../config";
+import { hedgeBasisNote, useHedgeQuote } from "../hooks/hedgeQuote";
 import { liveSubject, useLiveSeries } from "../hooks/live";
 import { useMedia } from "../hooks/useMedia";
 import { usePage } from "../hooks/usePage";
@@ -21,17 +25,17 @@ const STEPS = [
   },
   {
     title: "Buy the long on Kuru",
-    text: "A hedger buys long claims on Kuru's on-chain order book. A GPU owner or lender mints a pair, sells the long into that book and keeps the short. Orders and fills are on-chain, and Kuru prices the claim from the PiryMarkFeed.",
+    text: "A hedger buys long claims on Kuru's on-chain order book. A GPU owner or lender mints a pair, sells the long into that book and keeps the short. Orders and fills are on-chain. Kuru's order book prices the claim; the PiryMarkFeed is the custody price source Kuru uses to value deposits and withdrawals.",
     link: { to: "/built-on", hash: "kuru", label: "How Kuru fits" },
   },
   {
     title: "The index moves",
-    text: "Every 15 minutes a Chainlink CRE workflow reads four public H100 prices, takes the median and publishes a mark. The long claim is worth (index - floor) / (cap - floor), always between $0 and $1. That mark is what the order book sees.",
+    text: "A Chainlink CRE workflow reads four public H100 prices, takes the median and publishes a mark (checked every 5 minutes; published when the index moves, and at least every 20 minutes so Kuru's 30-minute freshness check always passes): the feed's value for one long claim, (index - floor) / (cap - floor), always between $0 and $1. The workflow is run today through the CRE CLI simulation (one node) by our keeper; production runs the same workflow on a DON with consensus. The mark is what Kuru's custody reads; trading prices come from the order book.",
     link: { to: "/index", hash: undefined, label: "The composite index" },
   },
   {
     title: "CRE settles",
-    text: "At period end the workflow takes a final snapshot and sends one report. The market accepts a report once, and only if it matches the chain, index, spec and period and is fresh. Stale, replayed, wrong-chain and wrong-sender reports are refused, on the record. If no valid report arrives within seven days, anyone can settle at the band midpoint.",
+    text: "Settlement is the first valid workflow run after the period ends, on a full four-source quorum for the first 4 hours, within a 24-hour window; it sends one report. The market accepts a report once, and only if it matches the chain, index, spec and period and is fresh. Stale, replayed, wrong-chain and wrong-sender reports are refused, on the record. If no valid report arrives within seven days, anyone can settle at the band midpoint.",
     link: { to: "/evidence", hash: undefined, label: "The refusal ledger" },
   },
   {
@@ -97,11 +101,12 @@ function WorkedExample() {
     if (!live.market || !live.band || live.index === null || live.long === null) return null;
     const exposure: Exposure = { gpus: GPUS, hours: HOURS, band: live.band, priceDecimals: live.pd, collateralDecimals: live.market.collateral.decimals };
     const claims = claimsToHold(exposure);
-    const premium = (claims * live.long) / live.longScale;
-    return { exposure, claims, premium };
-  }, [live.market, live.band, live.index, live.long, live.longScale, live.pd]);
+    return { exposure, claims };
+  }, [live.market, live.band, live.index, live.long, live.pd]);
+  const feedMark = useMemo(() => (live.long !== null ? { value: live.long, scale: live.longScale } : null), [live.long, live.longScale]);
+  const quote = useHedgeQuote(model ? model.claims : null, feedMark, live.market?.collateral.decimals ?? 6);
 
-  if (!model || !live.market || !live.band || live.index === null || live.long === null) {
+  if (!model || !quote || !live.market || !live.band || live.index === null || live.long === null) {
     return <Pending title="Waiting for the live series">The worked example uses the live band and the feed&rsquo;s current mark.</Pending>;
   }
   const cd = live.market.collateral.decimals;
@@ -110,6 +115,7 @@ function WorkedExample() {
   const W = U - L;
   const today = raw(live.index, live.pd);
   const money = (v: bigint) => usd(v, cd, 0);
+  const premium = quote.premium;
   const scenarios = [
     { key: "below", title: "Below the floor", price: Math.max(0.01, L - W * 0.5), note: "The long pays nothing. You keep the cheaper GPUs and lose the premium." },
     { key: "today", title: "Where it stands today", price: today, note: "Inside the band, so a rise from here is paid back by the claims." },
@@ -128,16 +134,16 @@ function WorkedExample() {
         </li>
         <li>
           <span className="mono">3</span>
-          <p>The index stands at <strong>${trimmed(today, 4, 6)}</strong>, so one long claim is worth ({trimmed(today, 4, 6)} - {trimmed(L, 2, 2)}) / {trimmed(W, 2, 2)} = <strong>${trimmed(Number(live.long) / Number(live.longScale), 4, 6)}</strong> (the feed&rsquo;s mark). {fixed(model.claims, live.market.claims.decimals, 0)} claims at that mark cost <strong>{money(model.premium)}</strong>, which is not a Kuru quote.</p>
+          <p>The index stands at <strong>${trimmed(today, 4, 6)}</strong>, so one long claim is worth ({trimmed(today, 4, 6)} - {trimmed(L, 2, 2)}) / {trimmed(W, 2, 2)} = <strong>${trimmed(Number(live.long) / Number(live.longScale), 4, 6)}</strong> (the feed&rsquo;s mark). Buying {fixed(model.claims, live.market.claims.decimals, 0)} claims costs about <strong>{money(premium)}</strong>. {hedgeBasisNote(quote, live.market.claims.decimals)}</p>
         </li>
         <li>
           <span className="mono">4</span>
-          <p>Between the floor and the cap your all-in monthly bill is held at about <strong>{money(lockedMonthlyBill(model.exposure) + model.premium)}</strong>: your GPU-hours at the floor, plus the premium. The most the claims can ever pay is <strong>{money(maxPayout(model.claims))}</strong>.</p>
+          <p>Between the floor and the cap your all-in bill, re-priced at the settlement-day rate, is held at about <strong>{money(lockedMonthlyBill(model.exposure) + premium)}</strong>: your GPU-hours at the floor, plus the premium. The most the claims can ever pay is <strong>{money(maxPayout(model.claims))}</strong>.</p>
         </li>
       </ol>
       <div className="scenarios scenarios--cards">
         {scenarios.map((s) => {
-          const o = outcomeAt(model.exposure, model.claims, model.premium, BigInt(Math.round(s.price * 10 ** live.pd)));
+          const o = outcomeAt(model.exposure, model.claims, premium, BigInt(Math.round(s.price * 10 ** live.pd)));
           return (
             <div key={s.key} className="scenario">
               <h4>{s.title}</h4>
@@ -152,6 +158,7 @@ function WorkedExample() {
           );
         })}
       </div>
+      <ForwardLock exposure={model.exposure} claims={model.claims} premium={premium} today={today} />
       <Src contract="ComputeMarket, PiryMarkFeed" address={liveSubject.contracts.market} block={live.market.block.number} />
     </div>
   );
@@ -176,6 +183,7 @@ function Fallback() {
 }
 
 export default function HowItWorks() {
+  const live = useLiveSeries();
   usePage("How it works", "Mint a pair, buy the long on Kuru, watch the index move, let Chainlink CRE settle it, and redeem. A worked example with the live band and the cap made honest.");
   return (
     <>
@@ -187,6 +195,7 @@ export default function HowItWorks() {
             title={<>Five steps from a GPU bill to <em>a capped hedge</em></>}
             lede="Scroll through the life of a claim. The pictures use the live series and the settled fast demo; anything that is only an illustration says so."
           />
+          <GlossaryLine />
         </div>
       </header>
 
@@ -200,6 +209,7 @@ export default function HowItWorks() {
             <BlockHead kicker="Worked example" index="A" title={<>Real numbers, <em>live band</em></>} lede={`The band and the mark are read from ${config.chain.name} right now. Only the 64 GPUs and 720 hours are an example.`} id="worked-title" />
           </Reveal>
           <Reveal delay={0.05}><WorkedExample /></Reveal>
+          <TimingNote periodEnd={live.market?.terms.periodEnd} />
         </div>
       </section>
 

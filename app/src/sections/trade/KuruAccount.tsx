@@ -6,10 +6,11 @@ import { Src } from "../../components/Src";
 import { config } from "../../config";
 import { useAction } from "../../hooks/action";
 import { useClient } from "../../hooks/chain";
+import { useMarkFreshness } from "../../hooks/markFreshness";
 import { kuruMarketFor, useKuruAccount, useOpenOrders, useWalletTokens, type KuruSide } from "../../hooks/kuru";
 import { useViewer } from "../../hooks/viewer";
 import { useWallet } from "../../hooks/wallet";
-import { fixed, parseAmount } from "../../lib/format";
+import { duration, fixed, parseAmount } from "../../lib/format";
 import { cancelSlots, depositToKuru, openSession, withdrawFromKuru } from "../../lib/kuru";
 import type { MarketSnapshot } from "../../lib/reads";
 
@@ -75,6 +76,7 @@ export function KuruAccount({ snapshot }: { snapshot: MarketSnapshot }) {
   const action = useAction();
   const [selected, setSelected] = useState("quote");
   const [amount, setAmount] = useState("");
+  const freshness = useMarkFreshness();
 
   const row = rows.find((r) => r.key === selected) ?? rows[0]!;
   const parsed = parseAmount(amount, row.decimals);
@@ -140,8 +142,13 @@ export function KuruAccount({ snapshot }: { snapshot: MarketSnapshot }) {
             <ActionButton label={`Deposit ${row.symbol}`} busy={action.busy} disabled={parsed === null || parsed === 0n || parsed > inWallet} onRun={deposit} />
             <ActionButton label={`Withdraw ${row.symbol}`} variant="secondary" busy={action.busy} disabled={parsed === null || parsed === 0n || parsed > kuruFree} onRun={withdraw} />
           </div>
+          {freshness.stale && row.key !== "quote" ? (
+            <div className="callout warn" role="status">
+              <strong>Stale mark: claim deposits and withdrawals may revert.</strong> The feed was last updated {freshness.ageSeconds !== null ? `${duration(freshness.ageSeconds)} ago` : "a while ago"}. Kuru&rsquo;s price check needs a fresh mark (under 30 min); the keeper refreshes it every few minutes, so try again shortly.
+            </div>
+          ) : null}
           <TxStatus state={action.state} />
-          <p className="sub">Withdrawals also pass Kuru&rsquo;s shared withdrawal limiter and need a fresh price for the token, so a withdrawal can revert even when the balance is there.</p>
+          <p className="sub">Claim deposits and withdrawals also pass Kuru&rsquo;s shared limiter and need a fresh price for the token, so they can revert even when the balance is there.</p>
         </div>
         {account.data && account.data.rootId > 0n ? (
           <>

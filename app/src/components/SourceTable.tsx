@@ -14,8 +14,8 @@ interface Props {
   onchain?: { price: bigint; label: string } | null;
 }
 
-// Renders the sources of a composite index from config. Values and statuses are recorded by the operator; the
-// settled price itself is always read from the chain.
+// Renders a dated snapshot of the composite's sources from config. The live index and the settled price are always read
+// from the chain.
 export function SourceTable({ components, minValid, asOf, decimals = 6, onchain = null }: Props) {
   if (components.length === 0) return null;
   const summary = summarizeSources(components, minValid);
@@ -47,14 +47,14 @@ export function SourceTable({ components, minValid, asOf, decimals = 6, onchain 
         {summary.pending === summary.total
           ? "No readings are recorded for this series yet."
           : `Recorded: ${summary.valid} valid, ${summary.failed} failed${summary.pending > 0 ? `, ${summary.pending} not yet recorded` : ""}${summary.quorum === null ? "" : summary.quorum ? ", so the rule is met" : ", so the rule is not met"}.`}
-        {asOf ? ` As of ${asOf}.` : ""}
+        {asOf ? ` Snapshot ${asOf}; the live index is the on-chain feed.` : ""}
       </p>
       {median !== null && onchain ? (
-        <p className={`callout ${median === onchain.price ? "ok" : "warn"}`} role="status">
+        <p className={`callout${median === onchain.price ? " ok" : ""}`} role="status">
           <strong>Cross-check against the chain.</strong> The median of the recorded valid sources is ${fixed(median, decimals, 6)}.{" "}
           {median === onchain.price
             ? `${onchain.label} holds $${fixed(onchain.price, decimals, 6)}: they match to the unit.`
-            : `${onchain.label} holds $${fixed(onchain.price, decimals, 6)}, which differs. The recorded values may be out of date, or the workflow rounded differently.`}
+            : `${onchain.label} holds $${fixed(onchain.price, decimals, 6)}, the live feed has moved since this snapshot. The feed is the index; the table is a dated record of the sources.`}
         </p>
       ) : null}
     </div>

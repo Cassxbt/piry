@@ -141,3 +141,19 @@ export function changeOver(values: readonly number[], epsilon = 1e-9): Change {
   const direction = Math.abs(delta) <= epsilon ? "flat" : delta > 0 ? "up" : "down";
   return { delta, pct: first !== 0 ? (delta / Math.abs(first)) * 100 : null, direction };
 }
+
+export interface IndexRange {
+  rounds: number;
+  low: number;
+  high: number;
+  // First to latest observed index, in percent.
+  changePct: number | null;
+}
+
+// This index's own realized range, from observed rounds only (not the held point at "now", not the settlement point).
+export function indexRange(points: readonly FeedPoint[]): IndexRange | null {
+  const observed = points.filter((p) => !p.final && !p.held && p.index > 0);
+  if (observed.length === 0) return null;
+  const values = observed.map((p) => p.index);
+  return { rounds: observed.length, low: Math.min(...values), high: Math.max(...values), changePct: changeOver(values).pct };
+}

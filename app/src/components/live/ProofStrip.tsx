@@ -19,7 +19,7 @@ function LiveCell() {
         {live.market ? (remaining !== null && remaining > 0 ? duration(remaining) : "ended") : "n/a"}
       </p>
       <p className="proof-text">
-        {live.market ? `to the settlement snapshot, ${utc(live.market.terms.periodEnd)}` : "No live series is deployed on this network yet."}
+        {live.market ? `to the period end, ${utc(live.market.terms.periodEnd)}; settlement is the first valid run after it` : "No live series is deployed on this network yet."}
       </p>
       {live.market ? <Src contract="ComputeMarket" address={liveSubject.contracts.market} block={live.market.block.number} /> : null}
     </article>

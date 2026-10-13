@@ -45,6 +45,13 @@ describe("SourceTable", () => {
     expect(screen.getByText(/3 valid, 1 failed, so the rule is met/)).toBeTruthy();
   });
 
+  it("labels the table a dated snapshot and states the feed moved without alarm wording", () => {
+    render(<SourceTable components={components} minValid={3} asOf="13 Oct 2026, 09:42 UTC" decimals={6} onchain={{ price: 3_000_000n, label: "Feed round 9" }} />);
+    expect(screen.getByText(/Snapshot 13 Oct 2026, 09:42 UTC; the live index is the on-chain feed/)).toBeTruthy();
+    expect(screen.getByText(/the live feed has moved since this snapshot/)).toBeTruthy();
+    expect(screen.queryByText(/out of date/)).toBeNull();
+  });
+
   it("says nothing is recorded yet instead of showing placeholder prices", () => {
     const pending = components.map((c) => ({ ...c, value: null, status: "pending" as const }));
     render(<SourceTable components={pending} minValid={3} asOf={null} />);

@@ -186,7 +186,7 @@ export function SeriesCard() {
                   </span>
                   <span className="sub">{periodLine(snapshot, now)}</span>
                   {!snapshot.state.settled && now !== null && now < snapshot.terms.periodEnd ? (
-                    <div className="countdown" role="timer" aria-label="Time to the settlement snapshot">
+                    <div className="countdown" role="timer" aria-label="Time to the period end">
                       <span className="label">Settlement snapshot in</span>
                       <span className="num">{duration(Number(snapshot.terms.periodEnd - now))}</span>
                     </div>
@@ -288,7 +288,7 @@ export function SeriesSection() {
               <span className="n">02</span>
               <div>
                 <h3>Settle</h3>
-                <p>When the period ends, a Chainlink CRE report publishes the index price. Long redeems the share of the band the price has climbed, short redeems the rest.</p>
+                <p>When the period ends, a report from the CRE workflow (run through the CRE CLI simulation today; on a DON with consensus in production) publishes the index price. Long redeems the share of the band the price has climbed, short redeems the rest.</p>
               </div>
             </li>
             <li>

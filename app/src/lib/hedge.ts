@@ -1,3 +1,4 @@
+import { baseAtoms, sizeFromBaseAtoms, walkAsks, type Level, type MarketScale } from "./kuruMath";
 import { payouts, type Band } from "./payout";
 
 export interface Exposure {
@@ -53,6 +54,24 @@ export function outcomeAt(e: Exposure, claims: bigint, premium: bigint, price: b
   return { price, unhedged, payout, hedged: unhedged - payout + premium };
 }
 
+// The owner or lender side: rental income is gpus * hours * price, and short claims (sized like the long hedge) pay
+// as the index falls. unhedged is the income with no claims, hedged is income plus the short payout less the premium.
+export function ownerOutcomeAt(e: Exposure, claims: bigint, premium: bigint, price: bigint): Outcome {
+  const income = monthlyBill(e, price);
+  const payout = payouts(claims, price, e.band).short;
+  return { price, unhedged: income, payout, hedged: income + payout - premium };
+}
+
+// Income the short hedge holds between floor and cap, before premium: the cap, because every dollar the index falls is paid back.
+export function lockedOwnerIncome(e: Exposure): bigint {
+  return monthlyBill(e, e.band.upper);
+}
+
+export type HedgeSide = "renter" | "owner";
+
+export const outcomeFor = (side: HedgeSide, e: Exposure, claims: bigint, premium: bigint, price: bigint): Outcome =>
+  side === "owner" ? ownerOutcomeAt(e, claims, premium, price) : outcomeAt(e, claims, premium, price);
+
 export type Regime = "below" | "in-band" | "above";
 
 export function regimeOf(price: bigint, { lower, upper }: Band): Regime {
@@ -70,4 +89,35 @@ export function lockedMonthlyBill(e: Exposure): bigint {
 export function chartDomain(lower: number, upper: number, today: number): [number, number] {
   const span = upper - lower;
   return [Math.max(0, Math.min(lower - span * 0.6, today * 0.75)), Math.max(upper + span * 1.1, today * 1.2)];
+}
+
+export interface PremiumQuote {
+  premium: bigint;
+  // Claims (base units) the visible asks fill; the rest is priced at the feed mark.
+  filled: bigint;
+  basis: "book" | "book+mark" | "mark" | "book-partial";
+}
+
+export interface BookInput {
+  asks: readonly Level[];
+  scale: MarketScale;
+}
+
+export interface MarkInput {
+  value: bigint;
+  scale: bigint;
+}
+
+// Cost of the whole hedge: walk the visible asks, then price whatever the book cannot fill at the feed mark so a thin
+// book never makes the hedge look cheaper than it is. Without a mark an unfilled remainder is left out ("book-partial").
+export function quoteHedge(claims: bigint, book: BookInput | null, mark: MarkInput | null, collateralDecimals: number): PremiumQuote {
+  const atMark = (units: bigint) => (mark ? (units * mark.value + mark.scale - 1n) / mark.scale : 0n);
+  if (!book || book.asks.length === 0) return { premium: atMark(claims), filled: 0n, basis: "mark" };
+  const walk = walkAsks(book.asks, sizeFromBaseAtoms(claims, book.scale), book.scale);
+  const cost = (walk.cost * pow10(collateralDecimals)) / pow10(book.scale.quoteDecimals);
+  if (walk.complete) return { premium: cost, filled: claims, basis: "book" };
+  const filledRaw = baseAtoms(walk.filledSize, book.scale);
+  const filled = filledRaw < claims ? filledRaw : claims;
+  if (!mark) return { premium: cost, filled, basis: "book-partial" };
+  return { premium: cost + atMark(claims - filled), filled, basis: "book+mark" };
 }

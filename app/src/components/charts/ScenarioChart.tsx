@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Area, ComposedChart, Line, ReferenceArea, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useReducedMotion } from "motion/react";
 import { useMedia } from "../../hooks/useMedia";
-import { outcomeAt, type Exposure } from "../../lib/hedge";
+import { outcomeFor, type Exposure, type HedgeSide } from "../../lib/hedge";
 import type { Change } from "../../lib/feedHistory";
 import { trimmed } from "../../lib/numbers";
 import { ChangeBadge, ChartShell } from "./ChartShell";
@@ -19,6 +19,7 @@ interface Props {
   label?: string;
   height?: number;
   surface?: "paper" | "sheet";
+  side?: HedgeSide;
 }
 
 interface Sample {
@@ -30,22 +31,22 @@ interface Sample {
 
 const SAMPLES = 160;
 
-function sampleAt(exposure: Exposure, claims: bigint, premium: bigint, price: number): Sample {
-  const o = outcomeAt(exposure, claims, premium, BigInt(Math.round(price * 10 ** exposure.priceDecimals)));
+function sampleAt(side: HedgeSide, exposure: Exposure, claims: bigint, premium: bigint, price: number): Sample {
+  const o = outcomeFor(side, exposure, claims, premium, BigInt(Math.round(price * 10 ** exposure.priceDecimals)));
   const cd = 10 ** exposure.collateralDecimals;
   return { price, unhedged: Number(o.unhedged) / cd, hedged: Number(o.hedged) / cd, payout: Number(o.payout) / cd };
 }
 // Whole dollars, truncated like the rest of the app's money formatting, so the headline matches the figures beside it.
 const usd0 = (n: number) => `$${Math.floor(n + 1e-9).toLocaleString("en-US")}`;
 
-function Tip({ active, payload }: { active?: boolean; payload?: { payload: Sample }[] }) {
+function Tip({ active, payload, side }: { active?: boolean; payload?: { payload: Sample }[]; side: HedgeSide }) {
   const s = payload?.[0]?.payload;
   if (!active || !s) return null;
   return (
     <div className="chart-tip">
       <p className="chart-tip-time">Index settles at</p>
       <p className="chart-tip-value">${trimmed(s.price, 2, 2)}</p>
-      <p className="chart-tip-row"><span><i style={{ background: "var(--chart-accent)" }} />Net bill</span><b className="num">{usd0(s.hedged)}</b></p>
+      <p className="chart-tip-row"><span><i style={{ background: "var(--chart-accent)" }} />{side === "owner" ? "Net income" : "Net bill"}</span><b className="num">{usd0(s.hedged)}</b></p>
       <p className="chart-tip-row"><span><i style={{ background: "var(--chart-context)" }} />Unhedged</span><b className="num">{usd0(s.unhedged)}</b></p>
       <p className="chart-tip-row"><span>Claims pay</span><b className="num">{usd0(s.payout)}</b></p>
     </div>
@@ -55,7 +56,10 @@ function Tip({ active, payload }: { active?: boolean; payload?: { payload: Sampl
 // Monthly GPU bill against the settlement price. The hedged line is flat across the band and rises with the market only
 // above the cap; the unhedged line is the same bill with no claims. Every value is outcomeAt(), the same integer math
 // the contract's payouts use, sampled across the window.
-export default function ScenarioChart({ exposure, claims, premium, today, scrub, domain, onScrub, label = "Monthly bill if the index settles at", height = 300, surface = "paper" }: Props) {
+export default function ScenarioChart({ exposure, claims, premium, today, scrub, domain, onScrub, label, height = 300, surface = "paper", side = "renter" }: Props) {
+  const owner = side === "owner";
+  const noun = owner ? "income" : "bill";
+  const title = label ?? (owner ? "Rental income if the index settles at" : "Bill if the index settles at");
   const reduce = useReducedMotion();
   const narrow = useMedia("(max-width: 520px)");
   const gradient = useGradientId();
@@ -65,10 +69,10 @@ export default function ScenarioChart({ exposure, claims, premium, today, scrub,
   const U = Number(band.upper) / scale;
   const [xMin, xMax] = domain;
 
-  const at = (price: number) => sampleAt(exposure, claims, premium, price);
+  const at = (price: number) => sampleAt(side, exposure, claims, premium, price);
   const samples = useMemo(
-    () => Array.from({ length: SAMPLES + 1 }, (_, i) => sampleAt(exposure, claims, premium, xMin + ((xMax - xMin) * i) / SAMPLES)),
-    [exposure, claims, premium, xMin, xMax],
+    () => Array.from({ length: SAMPLES + 1 }, (_, i) => sampleAt(side, exposure, claims, premium, xMin + ((xMax - xMin) * i) / SAMPLES)),
+    [side, exposure, claims, premium, xMin, xMax],
   );
 
   const yMax = Math.max(...samples.map((s) => Math.max(s.unhedged, s.hedged))) * 1.08 || 1;
@@ -76,18 +80,18 @@ export default function ScenarioChart({ exposure, claims, premium, today, scrub,
   const xTicks = niceTicks(xMin, xMax, 5);
   const here = at(scrub);
   const now = at(today);
-  const saving = here.unhedged - here.hedged;
+  const gain = here.hedged - here.unhedged;
   const change: Change = {
-    delta: here.hedged - here.unhedged,
-    pct: here.unhedged !== 0 ? ((here.hedged - here.unhedged) / here.unhedged) * 100 : null,
-    direction: Math.abs(saving) < 0.5 ? "flat" : saving > 0 ? "down" : "up",
+    delta: gain,
+    pct: here.unhedged !== 0 ? (gain / here.unhedged) * 100 : null,
+    direction: Math.abs(gain) < 0.5 ? "flat" : gain < 0 ? "down" : "up",
   };
 
   const tablePrices = Array.from(new Set([xMin, L - (U - L) * 0.5, L, (L + U) / 2, U, U + (U - L) * 0.5, xMax, today].map((p) => Number(Math.max(p, 0).toFixed(4))))).sort((a, b) => a - b);
 
   const table = (
     <table className="table responsive">
-      <thead><tr><th className="r">Settlement price</th><th className="r">Unhedged bill</th><th className="r">Claims pay</th><th className="r">Net bill, premium in</th></tr></thead>
+      <thead><tr><th className="r">Settlement price</th><th className="r">Unhedged {noun}</th><th className="r">Claims pay</th><th className="r">Net {noun}, premium in</th></tr></thead>
       <tbody>
         {tablePrices.map((p) => {
           const s = at(p);
@@ -106,23 +110,23 @@ export default function ScenarioChart({ exposure, claims, premium, today, scrub,
 
   return (
     <ChartShell
-      label={`${label} $${trimmed(scrub, 2, 2)}`}
+      label={`${title} $${trimmed(scrub, 2, 2)}`}
       value={usd0(here.hedged)}
-      badge={<ChangeBadge change={change} format={usd0} suffix="vs unhedged" goodWhen="down" />}
-      sub={<>Unhedged would be {usd0(here.unhedged)}; claims pay {usd0(here.payout)}. Move over the chart or use the slider.</>}
+      badge={<ChangeBadge change={change} format={usd0} suffix="vs unhedged" goodWhen={owner ? "up" : "down"} />}
+      sub={<>Unhedged {noun} would be {usd0(here.unhedged)}; claims pay {usd0(here.payout)}. Move over the chart or use the slider.</>}
       surface={surface}
       source={
         <ul className="chart-keys" aria-label="Lines">
-          <li><i style={{ background: "var(--chart-context)" }} aria-hidden />Unhedged bill</li>
-          <li><i style={{ background: "var(--chart-accent)" }} aria-hidden />Hedged bill, premium included</li>
-          <li><i className="band" aria-hidden />Hedge pays between ${trimmed(L, 2, 2)} and ${trimmed(U, 2, 2)}</li>
+          <li><i style={{ background: "var(--chart-context)" }} aria-hidden />Unhedged {noun}</li>
+          <li><i style={{ background: "var(--chart-accent)" }} aria-hidden />Hedged {noun}, premium included</li>
+          <li><i className="band" aria-hidden />Hedge pays between ${trimmed(L, 2, 2)} and ${trimmed(U, 2, 2)}{owner ? `; protection stops at the floor, $${trimmed(L, 2, 2)}` : ""}</li>
           <li><i className="live" aria-hidden />Pulsing dot: the live index, ${trimmed(today, 2, 4)}</li>
         </ul>
       }
       table={table}
-      tableLabel="Table view: bill at sample prices"
+      tableLabel={`Table view: ${noun} at sample prices`}
     >
-      <div style={{ height }} role="img" aria-label={`Monthly bill against settlement price. The hedged bill is flat between ${trimmed(L, 2, 2)} and ${trimmed(U, 2, 2)} dollars per GPU-hour and rises with the market above the cap.`}>
+      <div style={{ height }} role="img" aria-label={owner ? `Rental income against settlement price. The hedged income is flat between ${trimmed(L, 2, 2)} and ${trimmed(U, 2, 2)} dollars per GPU-hour and falls with the market below the floor.` : `Bill against settlement price. The hedged bill is flat between ${trimmed(L, 2, 2)} and ${trimmed(U, 2, 2)} dollars per GPU-hour and rises with the market above the cap.`}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={samples}
@@ -160,7 +164,7 @@ export default function ScenarioChart({ exposure, claims, premium, today, scrub,
               width={52}
               tick={{ fill: "var(--ink-3)", fontSize: 11, textAnchor: "end", dx: 48 }}
             />
-            <Tooltip cursor={false} content={<Tip />} isAnimationActive={false} offset={18} wrapperStyle={{ outline: "none", zIndex: 5 }} />
+            <Tooltip cursor={false} content={<Tip side={side} />} isAnimationActive={false} offset={18} wrapperStyle={{ outline: "none", zIndex: 5 }} />
             <Line type="monotone" dataKey="unhedged" stroke="var(--chart-context)" strokeWidth={2} strokeLinecap="round" dot={false} activeDot={false} isAnimationActive={!reduce} animationDuration={350} />
             <Area type="monotone" dataKey="hedged" stroke="var(--chart-accent)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" fill={`url(#${gradient})`} dot={false} activeDot={false} isAnimationActive={!reduce} animationDuration={350} />
             <ReferenceLine x={scrub} stroke="var(--rule-strong)" strokeWidth={1} ifOverflow="hidden" />

@@ -49,6 +49,12 @@ describe("CountUp", () => {
     render(<MotionProvider><CountUp value={null} format={(n) => `$${n}`} /></MotionProvider>);
     expect(screen.getByText("n/a")).toBeTruthy();
   });
+
+  it("renders the real value before it is seen or animated, never a zero placeholder", () => {
+    render(<MotionProvider><CountUp value={3.4015} format={(n) => `$${n.toFixed(4)}`} /></MotionProvider>);
+    expect(screen.getByText("$3.4015")).toBeTruthy();
+    expect(screen.queryByText("$0.0000")).toBeNull();
+  });
 });
 
 describe("trimmed", () => {

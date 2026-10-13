@@ -1,3 +1,5 @@
+import { JudgeAccess } from "../components/JudgeAccess";
+import { GlossaryLine } from "../components/site/Term";
 import { Reveal } from "../components/site/motion";
 import { BlockHead } from "../components/site/Frame";
 import { SeriesSwitch } from "../components/site/SeriesSwitch";
@@ -70,6 +72,8 @@ export default function AppPage() {
             title={<>Size it, trade it, hold it, <em>redeem it</em></>}
             lede="The six steps a judge can walk end to end. Read-only works without a wallet; connect one to mint, trade, merge and redeem."
           />
+          <div className="judge-wrap"><JudgeAccess /></div>
+          <GlossaryLine />
           <SeriesSwitch />
         </div>
       </header>

@@ -1,5 +1,7 @@
 import BandGauge from "../components/charts/BandGauge";
 import { MarkHistoryChart } from "../components/charts/lazy";
+import { HedgeStudyNote } from "../components/HedgeStudyNote";
+import { IndexRange } from "../components/live/IndexRange";
 import { Src } from "../components/Src";
 import { SourceTable } from "../components/SourceTable";
 import { BlockHead, Frame } from "../components/site/Frame";
@@ -17,7 +19,7 @@ const FAILURES = [
   ["invalid-response", "The response did not parse, or did not match the rule above."],
   ["outside-sanity-bounds", "The value fell outside the sanity bounds."],
   ["below-minimum-count", "Too few providers or clouds stood behind the value."],
-  ["unavailable-or-no-consensus", "The nodes could not agree on a value, or could not reach the source."],
+  ["unavailable-or-no-consensus", "The source could not be reached, or (on a DON in production) the nodes could not agree on a value."],
 ] as const;
 
 export default function IndexPage() {
@@ -46,7 +48,7 @@ export default function IndexPage() {
             as="h1"
             kicker="The index"
             title={<>Piry H100 <em>Composite</em></>}
-            lede="One number everyone settles against: the median of four public H100 SXM prices, each read by its own Chainlink CRE call. It is built so that no single source decides the outcome, and so that a bad reading is refused instead of settled."
+            lede="One number everyone settles against: the median of four public H100 SXM prices, each read by its own call in a Chainlink CRE workflow. It is built so that no single source decides the outcome, and so that a bad reading is refused instead of settled."
           />
         </div>
       </header>
@@ -54,7 +56,7 @@ export default function IndexPage() {
       <section className="block" aria-labelledby="sources-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="Four sources" index="1/5" title={<>Why these four, <em>and what each one measures</em></>} lede="Each source has a fixed rule, written into the workflow and hashed into the market's spec hash. A report built on different rules is refused by the contract." id="sources-title" />
+            <BlockHead kicker="Four sources" index="1/6" title={<>Why these four, <em>and what each one measures</em></>} lede="Each source has a fixed rule, written into the workflow and hashed into the market's spec hash. A report built on different rules is refused by the contract." id="sources-title" />
           </Reveal>
           <div className="source-grid">
             {components.map((c, i) => (
@@ -78,7 +80,7 @@ export default function IndexPage() {
       <section className="block" aria-labelledby="live-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="Live values" index="2/5" title={<>The numbers, <em>checked against the chain</em></>} lede={`Recorded at ${source.componentsAsOf ?? "deployment"}. The median of those values is compared with what the mark feed holds, to the unit.`} id="live-title" />
+            <BlockHead kicker="Snapshot and live feed" index="2/6" title={<>The numbers, <em>checked against the chain</em></>} lede={`Recorded at ${source.componentsAsOf ?? "deployment"}. The median of those values is compared with what the mark feed holds, to the unit.`} id="live-title" />
           </Reveal>
           <div className="index-live">
             <Reveal className="index-table">
@@ -91,6 +93,7 @@ export default function IndexPage() {
                     <BandGauge lower={L} upper={U} markers={[{ value: raw(live.index, live.pd), label: `index $${trimmed(raw(live.index, live.pd), 2, 4)}`, tone: "accent" }]} money={(v) => `$${trimmed(v, 2, 2)}`} ariaLabel="Index on the payout band" />
                   ) : null}
                   <MarkHistoryChart subject={liveSubject} surface="paper" />
+                  <IndexRange />
                   {live.market ? <Src contract="PiryMarkFeed" address={liveSubject.contracts.markFeed} block={live.mark?.status === "ok" ? live.mark.block : live.market.block.number} /> : null}
                 </div>
               </Frame>
@@ -102,16 +105,16 @@ export default function IndexPage() {
       <section className="block" aria-labelledby="rule-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="The rule" index="3/5" title={<>Median, <em>at least three of four</em></>} id="rule-title" />
+            <BlockHead kicker="The rule" index="3/6" title={<>Median, <em>at least three of four</em></>} id="rule-title" />
           </Reveal>
           <div className="rule-grid">
             {[
-              ["Per-source consensus", "Each source is read by its own CRE call, and the nodes agree on its value and count by taking the median of what they saw. One noisy source cannot sink the others."],
-              ["Sanity bounds", source.bounds ? `A value outside $${source.bounds.min} to $${source.bounds.max} per GPU-hour is treated as a failure, so a malformed price cannot move the index.` : "Values are bounds-checked before they count."],
+              ["Per-source reading", "Each source is read by its own CRE call. Today that is the CRE CLI simulation, one node, run by our keeper (checked every 5 minutes; published when the index moves, and at least every 20 minutes so Kuru's 30-minute freshness check always passes). In production the same workflow runs on a DON, whose nodes reach consensus on each source by taking the median of what they saw. One noisy source cannot sink the others."],
+              ["Sanity bounds", source.bounds ? `A value outside $${source.bounds.min} to $${source.bounds.max} per GPU-hour is treated as a failure and does not count. Prices inside the bounds are not otherwise screened.` : "Values are bounds-checked before they count."],
               ["Quorum", `The index is published only if at least ${source.minValid ?? 3} of ${components.length} sources are valid. With fewer, no report is built, and the market waits for a good one or for the fallback.`],
-              ["The median", "With three valid sources it is the middle value. With four it is the mean of the two middle values, rounded down. The extremes never set the price."],
+              ["The median", "With three valid sources it is the middle value. With four it is the mean of the two middle values, rounded down: with four sources the median averages the middle two, so if one source drops the index can move materially. That is why settlement waits for all four sources first."],
               ["Failures are recorded", "A failed source is written into the evidence with a fixed reason code, never free text, so the record shows which source failed and why."],
-              ["One snapshot at the end", "Settlement is a snapshot taken at or just after the period end, and a report is refused once it is older than the market's maximum report age."],
+              ["One reading at the end", "Settlement is the first valid run after the period ends: it needs a full four-source quorum for the first 4 hours, within a 24-hour window. A report is refused once it is older than the market's maximum report age."],
             ].map(([head, body], i) => (
               <Reveal key={head} delay={(i % 3) * 0.05} className="rule-card">
                 <h3>{head}</h3>
@@ -133,7 +136,7 @@ export default function IndexPage() {
       <section className="block" aria-labelledby="basis-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="Basis disclosure" index="4/5" title={<>The sources disagree, <em>and a sanity band says by how much</em></>} lede="The composite measures cheapest on-demand listings, one GPU at a time. A published weekly median across many providers measures something nearby but different. Showing both is the honest way to say how far the number can be trusted." id="basis-title" />
+            <BlockHead kicker="Basis disclosure" index="4/6" title={<>The sources disagree, <em>and a sanity band says by how much</em></>} lede="The composite measures cheapest on-demand listings, one GPU at a time. A published weekly median across many providers measures something nearby but different. Showing both is the honest way to say how far the number can be trusted." id="basis-title" />
           </Reveal>
           <div className="basis-grid">
             <Reveal className="basis-card brackets">
@@ -172,10 +175,19 @@ export default function IndexPage() {
         </div>
       </section>
 
+      <section className="block" aria-labelledby="study-title">
+        <div className="wrap">
+          <Reveal>
+            <BlockHead kicker="Hedge effectiveness" index="5/6" title={<>How much of a month&rsquo;s bill <em>would a claim have covered</em></>} lede="An indicative look back over a year of weekly H100 prices, to show what a snapshot-settled claim does and does not remove." id="study-title" />
+          </Reveal>
+          <Reveal delay={0.05}><HedgeStudyNote /></Reveal>
+        </div>
+      </section>
+
       <section className="block" aria-labelledby="upgrade-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="Production path" index="5/5" title={<>From public pages <em>to licensed feeds</em></>} id="upgrade-title" />
+            <BlockHead kicker="Production path" index="6/6" title={<>From public pages <em>to licensed feeds</em></>} id="upgrade-title" />
           </Reveal>
           <ol className="path-list">
             <li><Reveal><span className="mono">TODAY</span><div><strong>Public endpoints, read at settlement.</strong><p>This is enough to show the mechanism end to end on a testnet. Usage terms for building a derived index on these providers&rsquo; data have not been confirmed with each of them.</p></div></Reveal></li>

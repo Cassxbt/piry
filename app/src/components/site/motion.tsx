@@ -51,7 +51,8 @@ interface CountUpProps {
   className?: string;
 }
 
-// Counts from zero to a live value when it first scrolls into view, then eases between later updates.
+// Always renders the real value (no-JS snapshots, reduced motion, before the element is seen); when motion is allowed it
+// replays a count from zero as the element first scrolls into view, then eases between later updates.
 export function CountUp({ value, format, duration = 0.9, className }: CountUpProps) {
   const reduce = useReducedMotion();
   const ref = useRef<HTMLSpanElement>(null);
@@ -59,7 +60,7 @@ export function CountUp({ value, format, duration = 0.9, className }: CountUpPro
   const fmt = useRef(format);
   fmt.current = format;
   const shown = useRef<number>(0);
-  const [text, setText] = useState(() => (value === null ? "n/a" : format(0)));
+  const [text, setText] = useState(() => (value === null ? "n/a" : format(value)));
 
   useEffect(() => {
     if (value === null) {
@@ -71,7 +72,10 @@ export function CountUp({ value, format, duration = 0.9, className }: CountUpPro
       setText(fmt.current(value));
       return;
     }
-    if (!inView) return;
+    if (!inView) {
+      setText(fmt.current(value));
+      return;
+    }
     const controls = animate(shown.current, value, {
       duration,
       ease: EASE_OUT,

@@ -93,7 +93,7 @@ function StageIndex() {
         <span><small>{hypo === null ? "LIVE" : "WHAT-IF"}</small>{hypo === null ? "from the feed" : <button type="button" className="text-btn" onClick={() => setHypo(null)}>reset</button>}</span>
       </div>
       <p className="stage-note">
-        A CRE workflow publishes a fresh mark every 15 minutes. {rounds.data?.length ? `${rounds.data.length} round${rounds.data.length > 1 ? "s" : ""} on-chain so far.` : "No rounds yet."} Long = (index - floor) / (cap - floor), clamped to $0 to $1.
+        A CRE workflow (run today through the CRE CLI simulation by our keeper) checks the mark every 5 minutes, publishing when the index moves and at least every 20 minutes. {rounds.data?.length ? `${rounds.data.length} round${rounds.data.length > 1 ? "s" : ""} on-chain so far.` : "No rounds yet."} Long = (index - floor) / (cap - floor), clamped to $0 to $1.
       </p>
     </div>
   );
@@ -110,7 +110,7 @@ function StageSettle() {
           {SOURCES.map((s, i) => <span className="flow-chip" key={s} style={{ animationDelay: `${i * 90}ms` }}>{s}</span>)}
         </div>
         <span className="arrow" aria-hidden />
-        <Tile tone="plain" title="CRE workflow" line="consensus per source, median, at least 3 of 4" delay={380} />
+        <Tile tone="plain" title="CRE workflow" line="reads 4 sources, median, at least 3 valid" delay={380} />
         <span className="arrow" aria-hidden />
         <Tile tone="plain" title="Receiver" line="checks the sender, then calls the market" delay={460} />
         <span className="arrow" aria-hidden />
@@ -122,7 +122,7 @@ function StageSettle() {
           {REFUSALS.map((r, i) => <li key={r} style={{ animationDelay: `${600 + i * 70}ms` }}><i aria-hidden>x</i>{r}</li>)}
         </ul>
       </div>
-      <p className="stage-note">Delivery today is the CRE CLI in simulation, gated to one operator wallet. Production uses the DON-signed forwarder with a workflow-pinned receiver.</p>
+      <p className="stage-note">Delivery today is the CRE CLI in simulation (one node), gated to one operator wallet. Production runs the same workflow on a DON with consensus, through the DON-signed forwarder and a workflow-pinned receiver.</p>
     </div>
   );
 }

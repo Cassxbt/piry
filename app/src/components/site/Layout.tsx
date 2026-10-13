@@ -1,3 +1,4 @@
+import { links } from "../../config/links";
 import { AnimatePresence, m, useReducedMotion, useScroll } from "motion/react";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useLocation, useOutlet } from "react-router-dom";
@@ -143,11 +144,13 @@ function Footer() {
           </ul>
         </div>
         <div className="footer-col">
-          <h2>Built on</h2>
+          <h2>Built on, and source</h2>
           <ul>
             <li><a href="https://docs.monad.xyz" target="_blank" rel="noreferrer">Monad docs</a></li>
             <li><a href="https://kuru-testnet-docs.mintlify.site" target="_blank" rel="noreferrer">Kuru docs</a></li>
             <li><a href="https://docs.chain.link/cre" target="_blank" rel="noreferrer">Chainlink CRE docs</a></li>
+            {links.repo ? <li><a href={links.repo} target="_blank" rel="noreferrer">GitHub repository</a></li> : null}
+            {links.videos ? <li><a href={links.videos} target="_blank" rel="noreferrer">Videos</a></li> : null}
             {config.chain.logsRpcUrl ? <li><span>RPC</span><a href="https://monad-foundation.notion.site/Crouton-Digital-RPC-endpoints-3dc6367594f2809d8ef5ce366b089282" target="_blank" rel="noreferrer">Crouton Digital</a></li> : null}
           </ul>
         </div>

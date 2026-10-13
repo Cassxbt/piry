@@ -1,3 +1,4 @@
+import { Term } from "../site/Term";
 import { useMemo } from "react";
 import { config } from "../../config";
 import { useSeriesShortMark } from "../../hooks/chain";
@@ -113,7 +114,7 @@ export function LivePanel() {
         </footer>
       </Frame>
       <p className="panel-caption">
-        {config.series.dataMode === "LIVE" ? "Real public prices, delivered to the chain by the CRE CLI in simulation." : "Demo data."} Mark shown: {live.mark?.status === "ok" ? markLabel(live.mark.answer, live.mark.decimals, 6) : "n/a"}.
+        {config.series.dataMode === "LIVE" ? "Real public prices, delivered to the chain by the CRE CLI in simulation (one node)." : "Demo data."} <Term k="mark">Mark</Term> shown: {live.mark?.status === "ok" ? markLabel(live.mark.answer, live.mark.decimals, 6) : "n/a"}.
       </p>
     </div>
   );

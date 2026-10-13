@@ -3,6 +3,7 @@ import { Cites } from "../components/site/Cites";
 import { Reveal } from "../components/site/motion";
 import { SiteLink } from "../components/site/SiteLink";
 import { whyNow } from "../content/whyNow";
+import { useLiveSeries } from "../hooks/live";
 import { usePage } from "../hooks/usePage";
 
 const COMPARE = [
@@ -35,6 +36,9 @@ const COMPARE = [
 ] as const;
 
 export default function Market() {
+  const live = useLiveSeries();
+  const shortMark = live.long !== null ? 1 - Number(live.long) / Number(live.longScale) : null;
+  const outlay = shortMark !== null ? `about $${shortMark.toFixed(2)} per claim at today's mark` : "its outlay";
   usePage("Market", "Who the first Piry users are, why a GPU price hedge does not exist yet, and how a fully collateralized capped claim differs from perps, prediction markets and GPU marketplaces.");
   return (
     <>
@@ -60,7 +64,7 @@ export default function Market() {
               <h3>Inference startups with fixed-price plans</h3>
               <p>They sell tokens or subscriptions at a price set weeks ahead and buy GPU hours at whatever the rate is that day. A rate spike comes straight out of the margin they promised.</p>
               <dl>
-                <div><dt>Buys</dt><dd>Long claims on Kuru, sized to next month&rsquo;s GPU-hours</dd></div>
+                <div><dt>Buys</dt><dd>Long claims on Kuru, sized to your GPU-hours</dd></div>
                 <div><dt>Gets</dt><dd>A payout that rises with the index, up to the cap</dd></div>
                 <div><dt>Risks</dt><dd>The premium, if prices stay low</dd></div>
               </dl>
@@ -72,10 +76,13 @@ export default function Market() {
               <dl>
                 <div><dt>Takes</dt><dd>The short, by minting a pair and selling the long</dd></div>
                 <div><dt>Gets</dt><dd>A payout that rises as the index falls, plus the premium</dd></div>
-                <div><dt>Risks</dt><dd>Giving up gains if rates rise past the cap</dd></div>
+                <div><dt>Risks</dt><dd>Losing its outlay ({outlay}) if rates rise; the loss is bounded by that outlay, not by a margin call</dd></div>
               </dl>
             </Reveal>
           </div>
+          <p className="sub">
+            <strong>Capital efficiency.</strong> A short posts the full complement: minting a pair takes $1 of collateral per claim pair, so the short&rsquo;s capital is tied up in full until settlement. That is the price of no margin and no liquidation, and it is less capital-efficient than a leveraged perp.
+          </p>
           <p className="callout">
             <strong>Honest status.</strong> These are the first users Piry is built for. No customer, partner or liquidity provider is claimed: the series is on testnet, and the short side is exactly the one that needs to be recruited. The roadmap says how.
           </p>
@@ -125,7 +132,7 @@ export default function Market() {
             </div>
           </Reveal>
           <p className="callout">
-            <strong>Complementary, not competing.</strong> A GPU marketplace gets you the compute. Piry holds the price of the compute you will need next month. A team can use both: rent where it is cheapest, and hedge the rate it expects to pay.
+            <strong>Complementary, not competing.</strong> A GPU marketplace gets you the compute. Piry locks the rate you will be re-quoted on settlement day for the compute you will need. A team can use both: rent where it is cheapest, and hedge the rate it expects to pay.
           </p>
           <p className="block-link">
             <SiteLink to="/app" hash="exposure" className="text-link">Size a hedge for your GPUs</SiteLink>

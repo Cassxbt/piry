@@ -10,7 +10,22 @@ export type ActionState =
   | { phase: "done"; label: string; hash: Hash }
   | { phase: "error"; label: string; message: string; hash?: Hash };
 
+// Kuru's withdrawal limiter reverts InvalidWithdrawalPrice when the token's feed updatedAt is older than 1800 s.
+export const INVALID_WITHDRAWAL_PRICE = "0x393843a9";
+const STALE_PRICE_MESSAGE = "Kuru's price check needs a fresh mark (under 30 min); the keeper refreshes it every few minutes, try again shortly";
+
+function mentions(error: unknown, needle: string): boolean {
+  const seen = new Set<unknown>();
+  for (let e = error as { cause?: unknown } | undefined; e && typeof e === "object" && !seen.has(e); e = e.cause as typeof e) {
+    seen.add(e);
+    const { message, details, data } = e as { message?: unknown; details?: unknown; data?: unknown };
+    for (const field of [message, details, data]) if (typeof field === "string" && field.toLowerCase().includes(needle)) return true;
+  }
+  return false;
+}
+
 export function describeError(error: unknown): string {
+  if (mentions(error, INVALID_WITHDRAWAL_PRICE) || mentions(error, "invalidwithdrawalprice")) return STALE_PRICE_MESSAGE;
   if (error instanceof BaseError) {
     const reverted = error.walk((e) => e instanceof ContractFunctionRevertedError);
     if (reverted instanceof ContractFunctionRevertedError) {

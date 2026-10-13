@@ -19,7 +19,7 @@
   },
   "settlement": {
     "source": "Chainlink CRE workflow",
-    "markCadence": "every 15 minutes"
+    "markCadence": "checked every 5 minutes; published when the index moves, and at least every 20 minutes so Kuru's 30-minute freshness check always passes"
   },
   "series": {
     "name": "H100 live",
@@ -28,26 +28,26 @@
     "dataMode": "LIVE",
     "source": {
       "name": "Composite H100 SXM on-demand price (median of public sources)",
-      "summary": "The median of four public H100 SXM, 1-GPU, on-demand prices fetched by Chainlink CRE: the Akash on-chain marketplace, RunPod, Verda and Shadeform's median across its SXM clouds. A reading is used only if at least 3 of the 4 sources return a valid price, and any failed source is recorded in the evidence. With an even number of valid sources the median is the mean of the two middle values.",
+      "summary": "The median of four public H100 SXM, 1-GPU, on-demand prices fetched by a Chainlink CRE workflow: Akash Console's public price API, RunPod, Verda and Shadeform's median across its SXM clouds. A reading is used only if at least 3 of the 4 sources return a valid price, and any failed source is recorded in the evidence. With an even number of valid sources the median is the mean of the two middle values.",
       "sanityBand": {
         "name": "GetDeploying weekly H100 median",
         "license": "CC BY 4.0",
         "note": "Median of 41 providers. A published reference for the level, not used for settlement.",
         "url": "https://getdeploying.com/dataset/gpu-prices/weekly.csv",
-        "value": "3.41",
-        "asOf": "week of 5 Oct 2026"
+        "value": "3.73",
+        "asOf": "week of 12 Oct 2026"
       },
       "demo": null,
       "minValid": 3,
       "components": [
         {
-          "name": "Akash on-chain marketplace",
-          "detail": "Derived from on-chain marketplace bids",
+          "name": "Akash Console (public API)",
+          "detail": "Derived from on-chain bids, trailing average",
           "value": "2.73",
           "status": "valid",
           "url": null,
-          "rule": "Akash Console's public GPU price endpoint, built from on-chain marketplace bids. NVIDIA H100, 80Gi, SXM5: the weighted-average price across providers, with at least 2 providers required. It is a trailing average, so it moves more slowly than a spot quote.",
-          "why": "A decentralised GPU market whose bids are on a public chain, so the number can be traced to on-chain activity."
+          "rule": "Akash Console's public GPU price endpoint, built from on-chain marketplace bids. NVIDIA H100, 80Gi, SXM5: the weighted-average price across providers, with at least 2 providers required. It is a 14 to 31 day trailing average, so it moves more slowly than a spot quote.",
+          "why": "A decentralised GPU market. The value comes from Akash Console's public API, which derives it from on-chain bids; the workflow does not read the chain directly."
         },
         {
           "name": "RunPod",
@@ -92,8 +92,10 @@
     "longMarket": "0xe2393d5f15523931e59f340cffebcde30fa7db1a",
     "shortMarket": "0xd93db02c88d645e669a3965cd46e72cca137f193"
   },
+  "teamAddresses": ["0x66d71a8612Fbf6ab69340Bf82aB431e1Ad30b5c3"],
+  "tractionFromBlock": 70515000,
   "evidenceBase": "/evidence/monad-testnet",
-  "markStaleSeconds": 3600,
+  "markStaleSeconds": 1500,
   "variants": {
     "fast-demo": {
       "label": "Fast demo",

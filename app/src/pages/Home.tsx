@@ -1,4 +1,9 @@
+import { JudgeAccess } from "../components/JudgeAccess";
+import { TimingNote } from "../components/live/TimingNote";
+import { Term } from "../components/site/Term";
 import { CapDemo } from "../components/live/CapDemo";
+import { TractionTile } from "../components/live/TractionPanel";
+import { IndexRange } from "../components/live/IndexRange";
 import { LivePanel } from "../components/live/LivePanel";
 import { MarkHistoryChart } from "../components/charts/lazy";
 import { ProofStrip } from "../components/live/ProofStrip";
@@ -20,7 +25,7 @@ function HeroFacts() {
   const U = live.band ? raw(live.band.upper, live.pd) : null;
   return (
     <dl className="hero-facts rise d3">
-      <div><dt>Band</dt><dd className="num">{L !== null && U !== null ? `$${trimmed(L, 2, 2)} to $${trimmed(U, 2, 2)}` : "n/a"}</dd></div>
+      <div><dt><Term k="band">Band</Term></dt><dd className="num">{L !== null && U !== null ? `$${trimmed(L, 2, 2)} to $${trimmed(U, 2, 2)}` : "n/a"}</dd></div>
       <div><dt>Index now</dt><dd className="num">{live.index !== null ? `$${trimmed(raw(live.index, live.pd), 4, 4)}` : "n/a"}</dd></div>
       <div><dt>Settles</dt><dd className="num">{live.market ? utc(live.market.terms.periodEnd) : "n/a"}</dd></div>
     </dl>
@@ -39,7 +44,7 @@ function Hero() {
             <span><em>Piry caps the gap.</em></span>
           </h1>
           <p className="hero-lede rise d1">
-            Piry lets a team that rents GPUs lock what next month&rsquo;s compute costs. Buy a capped long claim on Kuru: if the H100 price index rises, the claim pays the difference, up to a cap you can see before you trade.
+            Piry lets a team that rents GPUs lock the rate it will be re-quoted on settlement day. Buy a capped long <Term k="claim" /> on Kuru: if the H100 price index rises above the floor, the claim pays the difference, up to a cap you can see before you trade.
           </p>
           <div className="hero-actions rise d2">
             <SiteLink to="/app" hash="exposure" className="btn">Size your hedge</SiteLink>
@@ -67,7 +72,7 @@ function Steps() {
     {
       n: "1/3",
       title: "Lock",
-      text: "If you rent GPUs by the hour, buy long claims sized to your GPU-hours. Between the floor and the cap, every dollar the index rises is paid back to you.",
+      text: "If you rent GPUs by the hour, buy long claims sized to your GPU-hours. On settlement day, between the floor and the cap, every dollar the index has risen is paid back to you.",
       fact: L !== null && U !== null ? `Live band: $${trimmed(L, 2, 2)} to $${trimmed(U, 2, 2)} per GPU-hour` : "Live band: awaiting the chain",
       to: "/app",
       hash: "exposure",
@@ -85,7 +90,7 @@ function Steps() {
     {
       n: "3/3",
       title: "Settle with Chainlink",
-      text: "At period end a Chainlink CRE workflow reads four public price sources, takes the median and reports it on-chain. Long and short are paid from the same collateral, and bad reports are refused on the record.",
+      text: <>After the period ends, the first valid run of a Chainlink <Term k="CRE" /> workflow (on a full four-source quorum for the first 4 hours, within a 24-hour window) reads four public price sources, takes the median and reports it on-chain. Today the workflow runs through the CRE CLI simulation (one node), driven by our keeper (checked every 5 minutes; published when the index moves, and at least every 20 minutes so Kuru's 30-minute freshness check always passes); production runs the same workflow on a DON with consensus. Long and short are paid from the same collateral, and bad reports are refused on the record.</>,
       fact: live.market ? `Next settlement: ${utc(live.market.terms.periodEnd)}` : "Next settlement: awaiting the chain",
       to: "/evidence",
       hash: undefined,
@@ -145,11 +150,20 @@ function Audience() {
 }
 
 export default function Home() {
-  usePage("Piry", "Piry lets teams that rent GPUs lock next month's compute cost with capped, fully collateralized claims on a GPU rental price index, traded on Kuru and settled by Chainlink CRE on Monad.");
+  usePage("Piry", "Piry lets teams that rent GPUs lock the rate they will be re-quoted on settlement day with capped, fully collateralized claims on a GPU rental price index, traded on Kuru and settled by Chainlink CRE on Monad.");
   const live = useLiveSeries();
   return (
     <>
       <Hero />
+
+      <section className="block block--tight" aria-labelledby="judges-title">
+        <div className="wrap">
+          <Reveal>
+            <BlockHead kicker="For judges" index="00" title={<>Try it in <em>two minutes</em></>} id="judges-title" />
+          </Reveal>
+          <Reveal delay={0.05}><JudgeAccess /></Reveal>
+        </div>
+      </section>
 
       <section className="block block--tight" aria-labelledby="proof-title">
         <div className="wrap">
@@ -158,6 +172,12 @@ export default function Home() {
           </Reveal>
           <Reveal delay={0.05}><ProofStrip /></Reveal>
           <Reveal delay={0.08} className="chart-card"><MarkHistoryChart subject={liveSubject} surface="sheet" /></Reveal>
+          <Reveal delay={0.1}><IndexRange /></Reveal>
+          <Reveal delay={0.12}>
+            <p className="mono traction-kicker">TRACTION ON KURU</p>
+            <TractionTile />
+            <p className="block-link"><SiteLink to="/evidence" className="text-link">Full breakdown, team versus external</SiteLink></p>
+          </Reveal>
         </div>
       </section>
 
@@ -182,6 +202,7 @@ export default function Home() {
             />
           </Reveal>
           <Reveal delay={0.05}><CapDemo /></Reveal>
+          <TimingNote periodEnd={live.market?.terms.periodEnd} />
           <p className="block-link">
             <SiteLink to="/app" hash="exposure" className="text-link">Run it with your own GPUs</SiteLink>
           </p>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attachLogs, changeOver, shortOf, windowPoints, type FeedPoint } from "../lib/feedHistory";
+import { attachLogs, changeOver, indexRange, shortOf, windowPoints, type FeedPoint } from "../lib/feedHistory";
 
 const point = (round: number, t: number, index: number): FeedPoint => ({
   round: BigInt(round), t, index, long: 0, short: 0, evidenceHash: null, block: null, tx: null, final: false, held: false,
@@ -71,5 +71,25 @@ describe("attachLogs", () => {
     const out = attachLogs([point(1, 1, 1), point(2, 2, 2)], [{ round: 2n, block: 77n, tx }]);
     expect(out[0]?.tx).toBeNull();
     expect(out[1]).toMatchObject({ block: 77n, tx });
+  });
+});
+
+describe("indexRange", () => {
+  const pts = [point(1, 1, 3.4), point(2, 2, 3.3885), point(3, 3, 3.4085), point(4, 4, 3.41)];
+
+  it("reports rounds, low, high and first-to-latest change from observed rounds", () => {
+    const r = indexRange(pts);
+    expect(r).toMatchObject({ rounds: 4, low: 3.3885, high: 3.41 });
+    expect(r?.changePct).toBeCloseTo(((3.41 - 3.4) / 3.4) * 100, 9);
+  });
+
+  it("ignores held and settlement points", () => {
+    const r = indexRange([...pts, { ...point(5, 9, 99), held: true }, { ...point(6, 10, 0), final: true }]);
+    expect(r?.rounds).toBe(4);
+    expect(r?.high).toBe(3.41);
+  });
+
+  it("is null without observed rounds", () => {
+    expect(indexRange([])).toBeNull();
   });
 });

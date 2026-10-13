@@ -3,7 +3,7 @@ import { OrderBook } from "../components/OrderBook";
 import { Pending } from "../components/Pending";
 import { Section } from "../components/Section";
 import { config, primarySubject } from "../config";
-import { useMark, useMarket, useSeriesShortMark } from "../hooks/chain";
+import { useChainNow, useMark, useMarket, useSeriesShortMark } from "../hooks/chain";
 import { kuruMarketFor, useKuruBook, type KuruSide } from "../hooks/kuru";
 import { marketIssues } from "../lib/kuru";
 import { KuruAccount } from "./trade/KuruAccount";
@@ -47,6 +47,9 @@ function KuruPending() {
 export function Trade() {
   const market = useMarket();
   const snapshot = market.data;
+  const now = useChainNow(snapshot, market.dataUpdatedAt);
+  const settled = snapshot?.state.settled === true;
+  const ended = snapshot !== undefined && !settled && (now ?? snapshot.block.timestamp) >= snapshot.terms.periodEnd;
   const [route, setRoute] = useState<Route>("buy");
   const [side, setSide] = useState<KuruSide>(config.kuru.longMarket === null && config.kuru.shortMarket !== null ? "short" : "long");
 
@@ -134,7 +137,18 @@ export function Trade() {
                         <strong>{preview ? "Preview market, not the Piry listing." : "This is not the market it should be, so trading is disabled."}</strong> {issues.join(" ")}
                       </div>
                     ) : null}
-                    <Ticket key={`${side}-${route}`} snapshot={snapshot} book={book.data} side={side} defaultBuy={route === "buy"} blocked={issues.length > 0 && !preview} />
+                    {settled ? (
+                      <div className="callout bad" role="alert">
+                        <strong>Settled, trading closed: redeem instead.</strong> The index price is fixed, so resting orders no longer price a live risk. Withdraw your claims from Kuru and <a href="#redeem">redeem them for collateral</a>.
+                      </div>
+                    ) : ended ? (
+                      <div className="callout warn" role="status">
+                        <strong>The period has ended and settlement is pending.</strong> A trade now is a bet on the report that is about to fix the price. Minting is closed.
+                      </div>
+                    ) : null}
+                    <fieldset disabled={settled} className="ticket-fieldset">
+                    <Ticket key={`${side}-${route}`} snapshot={snapshot} book={book.data} side={side} defaultBuy={route === "buy"} blocked={(issues.length > 0 && !preview) || settled} />
+                    </fieldset>
                   </div>
                 </div>
               ) : route === "buy" ? (
