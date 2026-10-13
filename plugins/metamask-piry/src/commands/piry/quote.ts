@@ -36,7 +36,7 @@ export default class PiryQuote extends PiryCommand<QuoteOutput> {
   }
 
   override successHint(data: QuoteOutput): string {
-    const index = data.index.usdPerGpuHour ? `index $${data.index.usdPerGpuHour}/GPU-hour` : "no index yet";
-    return `${index}, band $${data.band.lowerUsd}-$${data.band.upperUsd}, ${data.settlement.status}`;
+    const index = data.index.usdPerGpuHour ? `last on-chain mark $${data.index.usdPerGpuHour}/GPU-hour` : "no on-chain mark yet";
+    return `PREVIEW: ${index}, band $${data.band.lowerUsd}-$${data.band.upperUsd}, ${data.settlement.status}`;
   }
 }

@@ -3,7 +3,7 @@ import type { Reader } from "./chain.js";
 import type { Config } from "./config.js";
 import { PiryError } from "./errors.js";
 import { marketIssues, readAccount, readMarket, type KuruAccount, type KuruMarket } from "./kuru.js";
-import type { Wallet } from "./tx.js";
+import { Run, type Budget, type Wallet } from "./tx.js";
 
 export interface Deps {
   client: Reader;
@@ -11,6 +11,9 @@ export interface Deps {
   wallet: Wallet;
   note?: (line: string) => void;
 }
+
+// Every write goes through one Run, which checks the chain when the host's status is not a final success.
+export const newRun = (deps: Deps, budget: Budget): Run => new Run(deps.wallet, budget, deps.note, deps.client);
 
 // Seconds a swap stays valid after planning. Approvals by a human can take minutes; the minimum-out floor,
 // not the deadline, is what bounds the price.

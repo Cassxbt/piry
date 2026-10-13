@@ -12,16 +12,19 @@ export interface SalePlan {
   minOut: bigint;
 }
 
-// What the book can absorb right now and the proceeds floor for it. Read-only.
-export async function planSale(deps: Deps, market: KuruMarket, rootId: bigint, amount: bigint, slippageBps: number, minProceeds: bigint | null, decimals: number): Promise<SalePlan> {
+// What the book can absorb right now and the proceeds floor for it. Read-only. `minProceeds` is a total floor for the
+// whole operation; `secured` is what the same operation already guarantees elsewhere (merged pairs), so the sale only
+// has to cover the difference.
+export async function planSale(deps: Deps, market: KuruMarket, rootId: bigint, amount: bigint, slippageBps: number, minProceeds: bigint | null, decimals: number, secured = 0n): Promise<SalePlan> {
   const est = await estimateSwap(deps.client, market.address, false, amount, rootId);
   const sellable = est.amountInUsed < amount ? est.amountInUsed : amount;
   let minOut = slippageFloor(est.amountOut, slippageBps);
   if (minProceeds !== null) {
-    if (est.amountOut < minProceeds) {
-      throw new PiryError("PROCEEDS_BELOW_MIN", `Selling now would return about ${fmt(est.amountOut, decimals)} USDC, below the minimum of ${fmt(minProceeds, decimals)}. Nothing was sent.`, "Wait, lower --min-proceeds, or merge pairs instead.");
+    if (secured + est.amountOut < minProceeds) {
+      const total = secured > 0n ? ` on top of ${fmt(secured, decimals)} USDC from merging, ${fmt(secured + est.amountOut, decimals)} USDC in total` : "";
+      throw new PiryError("PROCEEDS_BELOW_MIN", `Selling now would return about ${fmt(est.amountOut, decimals)} USDC${total}, below the minimum of ${fmt(minProceeds, decimals)}. Nothing was sent.`, "Wait, lower --min-proceeds, or merge pairs instead.");
     }
-    if (minProceeds > minOut) minOut = minProceeds;
+    if (minProceeds > secured && minProceeds - secured > minOut) minOut = minProceeds - secured;
   }
   return { amount: sellable, expected: est.amountOut, minOut };
 }

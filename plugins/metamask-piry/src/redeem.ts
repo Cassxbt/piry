@@ -1,9 +1,9 @@
 import { previewRedeemOnchain, readHoldings, readSeries } from "./chain.js";
-import { loadKuru, type Deps } from "./context.js";
+import { newRun, type Deps } from "./context.js";
 import { PiryError } from "./errors.js";
-import { balanceOf, requireFreshPrice, withdrawTx } from "./kuru.js";
+import { balanceOf, readAccount, requireFreshPrice, withdrawTx } from "./kuru.js";
 import { fmt, previewRedeem } from "./math.js";
-import { redeemTx, Budget, Run, type StepLog } from "./tx.js";
+import { redeemTx, Budget, type StepLog } from "./tx.js";
 
 export interface RedeemInput {
   minPayout: bigint | null;
@@ -19,6 +19,7 @@ export interface RedeemResult {
   minPayoutUsdc: string;
   receivedUsdc: string;
   steps: StepLog[];
+  warnings: string[];
   next: string;
 }
 
@@ -49,12 +50,23 @@ export async function redeem(deps: Deps, input: RedeemInput): Promise<RedeemResu
     );
   }
 
-  const [holdings, kuru] = await Promise.all([readHoldings(client, config, owner), loadKuru(client, config, owner)]);
-  const kuruLong = balanceOf(kuru.account, longClaim).free;
-  const kuruShort = balanceOf(kuru.account, shortClaim).free;
+  // Redemption is a call on the Piry market, not on Kuru. Kuru is read only to find claims parked in the trading
+  // balance; the order books are never loaded, so a closed or changed book cannot block a payout.
+  const [holdings, found] = await Promise.all([
+    readHoldings(client, config, owner),
+    readAccount(client, config.accountCore, owner, [longClaim, shortClaim]).catch((error: unknown) => (error instanceof Error ? error : new Error(String(error)))),
+  ]);
+  const kuru = found instanceof Error ? null : found;
+  const warnings: string[] = [];
+  const kuruLong = kuru ? balanceOf(kuru, longClaim).free : 0n;
+  const kuruShort = kuru ? balanceOf(kuru, shortClaim).free : 0n;
   const long = holdings.long + kuruLong;
   const short = holdings.short + kuruShort;
-  if (long === 0n && short === 0n) throw new PiryError("NOTHING_TO_REDEEM", "You hold no PIRY-L or PIRY-S.", "Run `mm piry position`.");
+  if (long === 0n && short === 0n) {
+    if (found instanceof Error) throw found;
+    throw new PiryError("NOTHING_TO_REDEEM", "You hold no PIRY-L or PIRY-S.", "Run `mm piry position`.");
+  }
+  if (found instanceof Error) warnings.push(`The Kuru trading balance could not be read (${found.message.split("\n")[0]}), so only wallet-held claims are redeemed. Run \`mm piry redeem\` again later for any claims held in Kuru.`);
 
   const payout = await previewRedeemOnchain(client, config, long, short);
   const local = previewRedeem(long, short, series.settlementPrice, series.band);
@@ -68,9 +80,9 @@ export async function redeem(deps: Deps, input: RedeemInput): Promise<RedeemResu
 
   if (kuruLong > 0n) await requireFreshPrice(client, config.withdrawalLimiter, longClaim);
   if (kuruShort > 0n) await requireFreshPrice(client, config.withdrawalLimiter, shortClaim);
-  const run = new Run(wallet, new Budget(null), deps.note);
-  if (kuruLong > 0n) await run.send("withdraw-long", `Piry: withdraw ${fmt(kuruLong, dec)} PIRY-L from Kuru to redeem`, withdrawTx(config.accountCore, kuru.account.rootId, longClaim, kuruLong, owner));
-  if (kuruShort > 0n) await run.send("withdraw-short", `Piry: withdraw ${fmt(kuruShort, dec)} PIRY-S from Kuru to redeem`, withdrawTx(config.accountCore, kuru.account.rootId, shortClaim, kuruShort, owner));
+  const run = newRun(deps, new Budget(null));
+  if (kuru && kuruLong > 0n) await run.send("withdraw-long", `Piry: withdraw ${fmt(kuruLong, dec)} PIRY-L from Kuru to redeem`, withdrawTx(config.accountCore, kuru.rootId, longClaim, kuruLong, owner));
+  if (kuru && kuruShort > 0n) await run.send("withdraw-short", `Piry: withdraw ${fmt(kuruShort, dec)} PIRY-S from Kuru to redeem`, withdrawTx(config.accountCore, kuru.rootId, shortClaim, kuruShort, owner));
   await run.send(
     "redeem",
     `Piry: redeem ${fmt(long, dec)} PIRY-L and ${fmt(short, dec)} PIRY-S for at least ${fmt(minPayout, dec)} USDC`,
@@ -89,6 +101,7 @@ export async function redeem(deps: Deps, input: RedeemInput): Promise<RedeemResu
     minPayoutUsdc: fmt(minPayout, dec),
     receivedUsdc: fmt(received, dec),
     steps: run.steps,
-    next: "Redeemed. The collateral is in your wallet.",
+    warnings,
+    next: warnings.length > 0 ? "Wallet-held claims redeemed; see warnings for what was skipped." : "Redeemed. The collateral is in your wallet.",
   };
 }

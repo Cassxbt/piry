@@ -188,7 +188,7 @@ test("a wallet failure mid-run reports the steps that already landed", async () 
   const e = await rejects(hedge(deps(sim, { long: true }), input()));
   const f = describeFailure(e);
   assert.equal(f.code, "TRANSACTION_FAILED");
-  assert.match(f.message, /Step "swap" failed after approve/);
+  assert.match(f.message, /FAILED: step "swap" failed after approve/);
   assert.match(f.message, /Policy denied/);
   assert.match(f.hint, /position/);
   assert.deepEqual(fns(sim), ["approve", "deposit"]);

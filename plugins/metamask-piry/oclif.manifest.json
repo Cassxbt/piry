@@ -386,7 +386,7 @@
           "type": "option"
         },
         "min-proceeds": {
-          "description": "Refuse to sell for less than this many USDC in total",
+          "description": "Refuse to unwind for less than this many USDC in total (merge payout plus Kuru sale)",
           "name": "min-proceeds",
           "hasDynamicHelp": false,
           "multiple": false,

@@ -8,7 +8,7 @@ const inputs = {
   claims: { type: InputFieldType.Text, flag: "claims", message: "PIRY-L claims to unwind (default: all held)", required: false, prompt: false },
   method: { type: InputFieldType.Text, flag: "method", message: "auto, merge or sell (default auto: merge pairs first, sell the rest on Kuru)", required: false, prompt: false },
   slippage: { type: InputFieldType.Text, flag: "slippage", message: "Slippage tolerance in basis points for a Kuru sale (default 100)", required: false, prompt: false },
-  minProceeds: { type: InputFieldType.Text, flag: "min-proceeds", message: "Refuse to sell for less than this many USDC in total", required: false, prompt: false },
+  minProceeds: { type: InputFieldType.Text, flag: "min-proceeds", message: "Refuse to unwind for less than this many USDC in total (merge payout plus Kuru sale)", required: false, prompt: false },
   kuruMarket: { type: InputFieldType.Text, flag: "kuru-market", message: "Kuru order book for PIRY-L/USDC (defaults to PIRY_KURU_MARKET)", required: false, prompt: false },
 } satisfies InputSchema;
 

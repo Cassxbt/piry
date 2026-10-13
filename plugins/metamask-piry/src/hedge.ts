@@ -1,11 +1,12 @@
 import type { Address } from "viem";
 import { readAllowance, readHoldings, readSeries, type Holdings, type SeriesState } from "./chain.js";
-import { SWAP_DEADLINE_SECONDS, loadKuru, type Deps, type KuruView } from "./context.js";
+import { SWAP_DEADLINE_SECONDS, loadKuru, newRun, type Deps, type KuruView } from "./context.js";
 import { PiryError } from "./errors.js";
 import { balanceOf, depositTx, estimateSwap, readAccount, requireFreshPrice, swapTx, withdrawTx, type KuruMarket, type SwapEstimate } from "./kuru.js";
-import { ceilDiv, claimsForGpuHours, fmt, netLong, slippageFloor } from "./math.js";
+import { GPU_HOURS_DECIMALS, ceilDiv, claimsForGpuHours, fmt, netLong, slippageFloor } from "./math.js";
+import { balancesOf, held, leftovers, netCoverage, owned, readBalances, recovery, type Balances, type Leftover } from "./reconcile.js";
 import { executeSale, planSale, type SalePlan } from "./sell.js";
-import { Budget, Run, approveTx, mintPairsTx, transferTx, type StepLog } from "./tx.js";
+import { Budget, approveTx, mintPairsTx, transferTx, type StepLog } from "./tx.js";
 
 export interface HedgeInput {
   gpuHoursMicro: bigint;
@@ -17,6 +18,15 @@ export interface HedgeInput {
 
 export type HedgeStatus = "HEDGED" | "PARTIAL" | "PREVIEW" | "ALREADY_HEDGED" | "UNAVAILABLE" | "UNHEDGED_PAIR";
 
+// What actually happened, read back from balances after the last write. Planned and executed amounts can differ when
+// the book moves between the estimate and the swap, so these are measured, never copied from the plan.
+export interface Reconciliation {
+  quote?: { requestedUsdc: string; usedUsdc: string; unspentUsdc: string };
+  short?: { mintedClaims: string; soldOrSentClaims: string; stillHeldClaims: string };
+  leftovers: Leftover[];
+  recovery: string[];
+}
+
 export interface HedgeResult {
   status: HedgeStatus;
   path: "kuru" | "mint" | "none";
@@ -25,7 +35,10 @@ export interface HedgeResult {
   alreadyHeldNetLong: string;
   claimsToAcquire: string;
   plan: Record<string, string>;
+  // Claims are wallet + free Kuru balance, exactly as `mm piry position` counts them; spentUsdc is the net USDC that left
+  // the wallet and Kuru account together.
   after?: { claimsLong: string; claimsShort: string; netLong: string; spentUsdc: string };
+  reconciliation?: Reconciliation;
   steps: StepLog[];
   warnings: string[];
   next: string;
@@ -132,7 +145,7 @@ export async function hedge(deps: Deps, input: HedgeInput): Promise<HedgeResult>
 
 async function hedgeOnKuru(deps: Deps, input: HedgeInput, p: Plan, kuru: KuruView, market: KuruMarket, sizing: BuySizing): Promise<HedgeResult> {
   const { client, config, wallet } = deps;
-  const { collateral, longClaim, shortClaim } = config.series;
+  const { collateral, longClaim } = config.series;
   const owner = wallet.address;
   const dec = p.series.collateralDecimals;
   const qd = market.quoteDecimals;
@@ -162,7 +175,8 @@ async function hedgeOnKuru(deps: Deps, input: HedgeInput, p: Plan, kuru: KuruVie
     return { ...header(p), status: "PREVIEW", path: "kuru", executed: false, plan, steps: [], warnings, next: "Nothing was sent. Re-run with --max-premium <USDC> (the most you will pay) to execute." };
   }
 
-  const run = new Run(wallet, new Budget(input.maxPremium), deps.note);
+  const start = balancesOf(config, p.holdings, kuru.account);
+  const run = newRun(deps, new Budget(input.maxPremium));
   run.budget.check(amountIn, "purchase");
   const quoteFree = balanceOf(kuru.account, collateral).free;
   const toDeposit = amountIn > quoteFree ? amountIn - quoteFree : 0n;
@@ -191,23 +205,47 @@ async function hedgeOnKuru(deps: Deps, input: HedgeInput, p: Plan, kuru: KuruVie
     await run.send("withdraw", `Piry: withdraw ${fmt(received, dec)} PIRY-L from Kuru to your wallet`, withdrawTx(config.accountCore, account.rootId, longClaim, received, owner));
   }
 
-  const [holdings, after] = await Promise.all([readHoldings(client, config, owner), loadKuru(client, config, owner)]);
-  const long = holdings.long + balanceOf(after.account, longClaim).free;
-  const short = holdings.short + balanceOf(after.account, shortClaim).free;
-  const net = netLong(long, short);
+  const end = await readBalances(client, config, owner);
+  const spent = owned(start.usdc) - owned(end.usdc);
+  const used = spent > 0n ? spent : 0n;
+  const net = netCoverage(end);
   const full = net >= p.target;
+  const found = reconcile(deps, p, end);
   return {
     ...header(p),
     status: full ? "HEDGED" : "PARTIAL",
     path: "kuru",
     executed: true,
     plan,
-    after: { claimsLong: fmt(long, dec), claimsShort: fmt(short, dec), netLong: fmt(net, dec), spentUsdc: fmt(run.budget.spent, qd) },
+    after: after(end, used, dec),
+    reconciliation: { quote: { requestedUsdc: fmt(amountIn, qd), usedUsdc: fmt(used, qd), unspentUsdc: fmt(amountIn > used ? amountIn - used : 0n, qd) }, ...found },
     steps: run.steps,
     warnings,
-    next: full ? "Hedge in place. Check `mm piry position`; after settlement run `mm piry redeem`." : "Partial hedge. Re-run the same command to top up toward the target.",
+    next: (full ? "Hedge in place. Check `mm piry position`; after settlement run `mm piry redeem`." : partialNext(input, p, end)) + leftoverNote(found),
   };
 }
+
+const after = (end: Balances, spent: bigint, decimals: number) => ({
+  claimsLong: fmt(held(end.long), decimals),
+  claimsShort: fmt(held(end.short), decimals),
+  netLong: fmt(netCoverage(end), decimals),
+  spentUsdc: fmt(spent, decimals),
+});
+
+const reconcile = (deps: Deps, p: Plan, end: Balances) => ({
+  leftovers: leftovers(end, p.series.collateralDecimals),
+  recovery: recovery(end, deps.config, deps.wallet.address, p.series.collateralDecimals),
+});
+
+// A partial hedge never says "re-run": balances changed, so the user looks again with `position` and a fresh preview
+// (with the flags that selected the mint path, or the preview would answer UNAVAILABLE) before any further authorised write.
+const partialNext = (input: HedgeInput, p: Plan, end: Balances): string => {
+  const dec = p.series.collateralDecimals;
+  const flags = `${input.allowMint ? " --allow-mint" : ""}${input.shortTo ? ` --short-to ${input.shortTo}` : ""}`;
+  return `Partial hedge: net long ${fmt(netCoverage(end), dec)} of ${fmt(p.target, dec)} claims. Run \`mm piry position\` to confirm balances, then preview the remainder with \`mm piry hedge --gpu-hours ${fmt(input.gpuHoursMicro, GPU_HOURS_DECIMALS)}${flags}\` (no --max-premium). Execute again only with a cap you approve afresh.`;
+};
+
+const leftoverNote = (r: { recovery: string[] }): string => (r.recovery.length > 0 ? " Leftover balances need attention; see reconciliation.recovery." : "");
 
 // Without a PIRY-L listing the only source of PIRY-L is minting pairs, which locks one collateral unit per pair.
 // The hedge is active only once the PIRY-S leg is gone: it is sold on the PIRY-S Kuru market when one is configured,
@@ -246,7 +284,8 @@ async function hedgeByMint(deps: Deps, input: HedgeInput, p: Plan, kuru: KuruVie
   }
   if (quantity === 0n) throw new PiryError("CAP_EXCEEDED", "Nothing can be minted within the cap and the PIRY-S book depth.", "Pass a larger --max-premium or wait for liquidity.");
 
-  const run = new Run(wallet, new Budget(input.maxPremium), deps.note);
+  const start = balancesOf(config, p.holdings, kuru.account);
+  const run = newRun(deps, new Budget(input.maxPremium));
   run.budget.check(quantity, "mint");
   if (quantity > p.holdings.collateral) {
     throw new PiryError("INSUFFICIENT_BALANCE", `Need ${fmt(quantity, dec)} USDC in the wallet, have ${fmt(p.holdings.collateral, dec)}.`, "Fund the Agent Wallet with Kuru test USDC on Monad testnet. Nothing was sent.");
@@ -255,27 +294,34 @@ async function hedgeByMint(deps: Deps, input: HedgeInput, p: Plan, kuru: KuruVie
     await run.send("approve", `Piry: let the Piry market take ${fmt(quantity, dec)} USDC as collateral`, approveTx(collateral, market, quantity));
   }
   await run.send("mint", `Piry: lock ${fmt(quantity, dec)} USDC to mint ${fmt(quantity, dec)} PIRY-L and PIRY-S`, mintPairsTx(market, quantity), quantity);
-  let proceeds = 0n;
   if (input.shortTo) {
     await run.send("transfer-short", `Piry: send ${fmt(quantity, dec)} PIRY-S to ${input.shortTo}`, transferTx(shortClaim, input.shortTo, quantity));
   } else if (shortMarket && sale) {
-    proceeds = await executeSale(deps, run, shortMarket, shortClaim, "PIRY-S", sale, p.series.now, dec, quantity);
+    await executeSale(deps, run, shortMarket, shortClaim, "PIRY-S", sale, p.series.now, dec, quantity);
   }
 
-  const holdings = await readHoldings(client, config, owner);
-  const net = netLong(holdings.long, holdings.short);
-  const active = net > 0n;
+  const end = await readBalances(client, config, owner);
+  const spent = owned(start.usdc) - owned(end.usdc);
+  const net = netCoverage(end);
+  const gone = owned(start.short) + quantity - owned(end.short);
+  const soldOrSent = gone > 0n ? (gone < quantity ? gone : quantity) : 0n;
+  const found = reconcile(deps, p, end);
+  const status = net === 0n ? "UNHEDGED_PAIR" : net >= p.target ? "HEDGED" : "PARTIAL";
   return {
     ...header(p),
-    status: !active ? "UNHEDGED_PAIR" : net >= p.target ? "HEDGED" : "PARTIAL",
+    status,
     path: "mint",
     executed: true,
     plan,
-    after: { claimsLong: fmt(holdings.long, dec), claimsShort: fmt(holdings.short, dec), netLong: fmt(net, dec), spentUsdc: fmt(quantity - proceeds, dec) },
+    after: after(end, spent > 0n ? spent : 0n, dec),
+    reconciliation: { short: { mintedClaims: fmt(quantity, dec), soldOrSentClaims: fmt(soldOrSent, dec), stillHeldClaims: fmt(quantity - soldOrSent, dec) }, ...found },
     steps: run.steps,
     warnings,
-    next: active
-      ? "PIRY-L is held and the PIRY-S leg is gone. Check `mm piry position`; after settlement run `mm piry redeem`."
-      : "Both legs are held, so net exposure is flat and the hedge is NOT active. Send or sell the PIRY-S leg to activate it, or run `mm piry unwind` to merge the pair and recover the collateral.",
+    next:
+      (status === "UNHEDGED_PAIR"
+        ? "Both legs are held, so net exposure is flat and the hedge is NOT active. Send or sell the PIRY-S leg to activate it, or run `mm piry unwind` to merge the pair and recover the collateral."
+        : status === "HEDGED"
+          ? "Hedge in place: net long claims cover the target. Check `mm piry position`; after settlement run `mm piry redeem`."
+          : partialNext(input, p, end)) + leftoverNote(found),
   };
 }

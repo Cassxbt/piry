@@ -7,6 +7,8 @@ import { isoTime, MARK_STALE_SECONDS } from "./position.js";
 import { countdown } from "./redeem.js";
 
 export interface QuoteResult {
+  kind: "PREVIEW";
+  note: string;
   series: string;
   index: { usdPerGpuHour: string | null; observedAt: string | null; ageSeconds: string | null; stale: boolean; source: string };
   band: { lowerUsd: string; upperUsd: string };
@@ -37,6 +39,8 @@ export async function quote(client: Reader, config: Config, gpuHoursMicro: bigin
   if (stale) warnings.push(age === null ? "The mark feed has no price yet." : `The mark feed was last updated ${countdown(age)} ago.`);
 
   const result: QuoteResult = {
+    kind: "PREVIEW",
+    note: "Read-only preview. `index` is the last observation the on-chain mark feed accepted (written by the Chainlink CRE workflow), not a live price; `liveSources`, when requested, is this plugin's own fetch and not an accepted observation. Nothing here is submitted.",
     series: "Piry H100 Composite (USD per GPU-hour, median of Akash, RunPod, Verda, Shadeform)",
     index: {
       usdPerGpuHour: mark ? fmt(mark.indexPrice, pd) : null,

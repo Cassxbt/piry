@@ -3,7 +3,7 @@ import { CHAIN_ID, type Config } from "./config.js";
 import { PiryError } from "./errors.js";
 import type { Band } from "./math.js";
 
-export type Reader = Pick<PublicClient, "readContract" | "getBlock" | "getChainId">;
+export type Reader = Pick<PublicClient, "readContract" | "getBlock" | "getChainId" | "waitForTransactionReceipt">;
 
 export const marketAbi = parseAbi([
   "function collateral() view returns (address)",

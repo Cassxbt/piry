@@ -17,6 +17,11 @@ export interface Book {
 
 export const PRICE_PRECISION = 10_000n;
 
+export interface Scripted {
+  status?: string;
+  chain?: "success" | "reverted" | "timeout";
+}
+
 export class Sim {
   now = 1_791_900_000n;
   periodEnd = 1_792_411_200n;
@@ -31,7 +36,14 @@ export class Sim {
   kuruRoot = 0n;
   kuruBal: Record<string, bigint> = { usdc: 0n, long: 0n, short: 0n };
   books = new Map<string, Book>();
-  sent: { tx: TxRequest; intent: Intent; fn: string; args: readonly unknown[] }[] = [];
+  sent: { tx: TxRequest; intent: Intent; fn: string; args: readonly unknown[]; hash: Hex; chain: NonNullable<Scripted["chain"]> }[] = [];
+  // Overrides for the Nth write (1-based): the status the host reports and what the chain really did.
+  scripted = new Map<number, Scripted>();
+  beforeWrite: ((tx: TxRequest) => void) | null = null;
+  booksDown = false;
+  kuruDown = false;
+  bookReads: string[] = [];
+  reserved: Record<string, bigint> = { usdc: 0n, long: 0n, short: 0n };
   failOn: string | null = null;
   failWith = "boom";
   previewOffset = 0n;
@@ -65,10 +77,20 @@ export class Sim {
   reader: Reader = {
     getChainId: async () => this.chainId,
     getBlock: async () => ({ timestamp: this.now }) as never,
+    waitForTransactionReceipt: (async ({ hash }: { hash: Hex }) => {
+      const entry = this.sent.find((s) => s.hash === hash);
+      if (!entry || entry.chain === "timeout") throw new Error("sim: timed out waiting for the transaction receipt");
+      return { status: entry.chain === "success" ? "success" : "reverted" };
+    }) as never,
     readContract: (async (req: { address: Address; functionName: string; args?: readonly unknown[] }) => {
       const a = low(req.address);
       const args = req.args ?? [];
       const f = req.functionName;
+      if (this.books.has(a) || (a === low(KURU_ACCOUNT_CORE) && f === "verifiedSpotOrderBook")) {
+        this.bookReads.push(f);
+        if (this.booksDown) throw new Error("sim: order book unreachable");
+      }
+      if (a === low(KURU_ACCOUNT_CORE) && this.kuruDown && f !== "verifiedSpotOrderBook") throw new Error("sim: Kuru AccountCore unreachable");
       if (a === low(SERIES.market)) {
         const v: Record<string, unknown> = {
           collateral: SERIES.collateral, longClaim: SERIES.longClaim, shortClaim: SERIES.shortClaim, lower: 2_500_000n, upper: 4_500_000n,
@@ -109,7 +131,7 @@ export class Sim {
         if (f === "verifiedSpotOrderBook") return !this.unverified.has(low(args[0] as string));
         if (f === "rootAccountIdOf") return this.kuruRoot;
         if (f === "getBalance") return this.kuruRoot === 0n ? 0n : this.kuruBal[this.key(args[1] as Address)]!;
-        if (f === "getSpotReservedBalance") return 0n;
+        if (f === "getSpotReservedBalance") return this.reserved[this.key(args[1] as Address)]!;
       }
       const book = this.books.get(a);
       if (book) {
@@ -131,14 +153,18 @@ export class Sim {
   wallet: Wallet = {
     address: OWNER,
     send: async (tx: TxRequest, intent: Intent): Promise<TxReceipt> => {
+      this.beforeWrite?.(tx);
       const abi = (
         low(tx.to) === low(SERIES.market) ? marketAbi : low(tx.to) === low(KURU_ACCOUNT_CORE) ? accountCoreAbi : this.books.has(low(tx.to)) ? orderBookAbi : erc20Abi
       ) as Abi;
       const { functionName, args = [] } = decodeFunctionData({ abi, data: tx.data });
       if (this.failOn === functionName) throw new Error(this.failWith);
-      this.apply(tx, functionName, args);
-      this.sent.push({ tx, intent, fn: functionName, args });
-      return { hash: `0x${(this.sent.length).toString(16).padStart(64, "0")}` as Hex, status: "CONFIRMED" };
+      const script = this.scripted.get(this.sent.length + 1) ?? {};
+      const chain = script.chain ?? "success";
+      if (chain === "success") this.apply(tx, functionName, args);
+      const hash = `0x${(this.sent.length + 1).toString(16).padStart(64, "0")}` as Hex;
+      this.sent.push({ tx, intent, fn: functionName, args, hash, chain });
+      return { hash, status: script.status ?? "CONFIRMED" };
     },
   };
 

@@ -55,3 +55,43 @@ test("the shipped skill exists with frontmatter and its commands match the plugi
   assert.match(skill, /^---\nname: piry\ndescription: .{40,}\n---\n/);
   for (const c of ["quote", "hedge", "position", "unwind", "redeem"]) assert.match(skill, new RegExp(`mm piry ${c}`));
 });
+
+const readme = readFileSync(join(root, "README.md"), "utf8");
+const skill = readFileSync(join(root, "skills/piry/SKILL.md"), "utf8");
+
+test("README and skill state the observed Guard boundary and promise no per-transaction policy enforcement", () => {
+  for (const [name, text] of [["README", readme], ["SKILL", skill]] as const) {
+    assert.doesNotMatch(text, /MetaMask policy, threat scanning and 2FA (still )?apply/i, name);
+    assert.doesNotMatch(text, /pauses for 2FA|fine demo moment/i, name);
+    assert.match(text, /did not (block|enforce)/i, name);
+    assert.match(text, /email MFA/i, name);
+    assert.match(text, /13 Oct/, name);
+    assert.match(text, /10143/, name);
+    for (const local of ["preview", "--max-premium", "minimum notional", "stale", "verified", "settled"]) assert.match(text, new RegExp(local, "i"), `${name}: ${local}`);
+  }
+});
+
+test("README and skill carry no stale claims: top-up hint, one-hour stale mark, unrun write flows, 500-hour HEDGED demo", () => {
+  for (const [name, text] of [["README", readme], ["SKILL", skill]] as const) {
+    assert.doesNotMatch(text, /re-run the same command/i, name);
+    assert.doesNotMatch(text, /one hour/i, name);
+    assert.match(text, /1,?500 ?s/, name);
+  }
+  assert.doesNotMatch(readme, /have not been submitted through a real Agent Wallet|was not run/i);
+  assert.doesNotMatch(readme, /51 offline tests/);
+  assert.doesNotMatch(readme, /mm piry hedge --gpu-hours 500 --max-premium 500/);
+});
+
+test("README records the real Agent Wallet run: four hashes, 39 of 40 claims, the cost, and customEvmChains in the install steps", () => {
+  for (const hash of [
+    "0x5ab3a66a43531da5a8db3975cd5e09910f6449caff8c92f41552b6d17d6f77ed",
+    "0x1c62440f9e804e235b6c1a25469a2fcf18e7c3e855c7394acb5f717e1670d4d3",
+    "0xbb5ab624180c2ba9d9f38634fde7974ce0cb029b10ac83fddf3095fdbda1aa71",
+    "0x7c5c446428a6e59a9a285766463f3192ee755f44c7b54293fe823c98c2103728",
+  ]) assert.ok(readme.includes(hash), hash);
+  assert.match(readme, /39 PIRY-L of 40/);
+  assert.match(readme, /18\.085 USDC/);
+  assert.match(readme, /PARTIAL/);
+  const install = readme.slice(readme.indexOf("## Install"), readme.indexOf("## Real-wallet prerequisites"));
+  assert.match(install, /customEvmChains/);
+});
