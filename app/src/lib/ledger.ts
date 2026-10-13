@@ -231,6 +231,9 @@ export interface ScanResult {
   toBlock: bigint;
   truncated: boolean;
   requests: number;
+  chunk: number;
+  via: string;
+  failedSources: string[];
 }
 
 // Newest chunks first, capped, so the public RPC's small getLogs window cannot turn one page view into
@@ -258,7 +261,7 @@ export async function scanReportProcessed(
     }
   };
   await Promise.all(Array.from({ length: Math.min(6, chunks.length) }, worker));
-  return { hashes: [...hashes], fromBlock: reached, toBlock: opts.toBlock, truncated: reached > opts.fromBlock, requests: chunks.length };
+  return { hashes: [...hashes], fromBlock: reached, toBlock: opts.toBlock, truncated: reached > opts.fromBlock, requests: chunks.length, chunk: opts.chunk, via: "", failedSources: [] };
 }
 
 export interface ManifestEntry {
@@ -275,9 +278,13 @@ export interface OffchainRefusal {
 }
 
 export interface Manifest {
+  market: string | null;
   entries: ManifestEntry[];
   offchain: OffchainRefusal[];
 }
+
+// A pinned file that names a market is only valid for that market. Files that name none are accepted as is.
+export const boundTo = (declared: string | null, market: string) => declared === null || declared.toLowerCase() === market.toLowerCase();
 
 // A manifest only points at transactions. Every on-chain outcome shown is re-derived from the transaction's logs.
 export async function loadManifest(base: string): Promise<Manifest | null> {
@@ -285,6 +292,7 @@ export async function loadManifest(base: string): Promise<Manifest | null> {
   if (text === null) return null;
   try {
     const parsed = JSON.parse(text) as {
+      market?: string;
       entries?: { txHash?: string; note?: string }[];
       offchain?: { title?: string; reason?: string; note?: string }[];
     };
@@ -292,7 +300,7 @@ export async function loadManifest(base: string): Promise<Manifest | null> {
       e.txHash && /^0x[0-9a-fA-F]{64}$/.test(e.txHash) ? [{ txHash: e.txHash as Hex, note: e.note ?? null }] : [],
     );
     const offchain = (parsed.offchain ?? []).flatMap((o) => (o.title && o.reason ? [{ title: o.title, reason: o.reason, note: o.note ?? "" }] : []));
-    return { entries, offchain };
+    return { market: parsed.market ?? null, entries, offchain };
   } catch {
     return null;
   }

@@ -1,0 +1,257 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Stage } from "../components/stages/Stages";
+import { BlockHead } from "../components/site/Frame";
+import { Reveal } from "../components/site/motion";
+import { SiteLink } from "../components/site/SiteLink";
+import { Pending } from "../components/Pending";
+import { Src } from "../components/Src";
+import { config } from "../config";
+import { liveSubject, useLiveSeries } from "../hooks/live";
+import { useMedia } from "../hooks/useMedia";
+import { usePage } from "../hooks/usePage";
+import { claimsToHold, lockedMonthlyBill, maxPayout, outcomeAt, type Exposure } from "../lib/hedge";
+import { duration, fixed, usd, utc } from "../lib/format";
+import { raw, trimmed } from "../lib/numbers";
+
+const STEPS = [
+  {
+    title: "Mint a pair",
+    text: "Deposit one unit of dollar collateral and receive one long and one short claim. Both are ordinary ERC-20 tokens, and the contract keeps the collateral, so every claim is fully backed. A pair can always be merged back into the collateral it came from.",
+    link: { to: "/app", hash: "trade", label: "Mint a pair in the app" },
+  },
+  {
+    title: "Buy the long on Kuru",
+    text: "A hedger buys long claims on Kuru's on-chain order book. A GPU owner or lender mints a pair, sells the long into that book and keeps the short. Orders and fills are on-chain, and Kuru prices the claim from the PiryMarkFeed.",
+    link: { to: "/built-on", hash: "kuru", label: "How Kuru fits" },
+  },
+  {
+    title: "The index moves",
+    text: "Every 15 minutes a Chainlink CRE workflow reads four public H100 prices, takes the median and publishes a mark. The long claim is worth (index - floor) / (cap - floor), always between $0 and $1. That mark is what the order book sees.",
+    link: { to: "/index", hash: undefined, label: "The composite index" },
+  },
+  {
+    title: "CRE settles",
+    text: "At period end the workflow takes a final snapshot and sends one report. The market accepts a report once, and only if it matches the chain, index, spec and period and is fresh. Stale, replayed, wrong-chain and wrong-sender reports are refused, on the record. If no valid report arrives within seven days, anyone can settle at the band midpoint.",
+    link: { to: "/evidence", hash: undefined, label: "The refusal ledger" },
+  },
+  {
+    title: "Redeem",
+    text: "Burn your claims and receive collateral: the long gets the share of the band the index climbed, the short gets the rest. Preview the amount first and set a minimum payout, so the transaction reverts if it is not what you expect.",
+    link: { to: "/app", hash: "redeem", label: "Redeem in the app" },
+  },
+] as const;
+
+function Explainer() {
+  const [active, setActive] = useState(0);
+  const refs = useRef<(HTMLLIElement | null)[]>([]);
+  const wide = useMedia("(min-width: 980px)");
+
+  useEffect(() => {
+    if (!wide) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) setActive(Number((entry.target as HTMLElement).dataset.step));
+        }
+      },
+      { rootMargin: "-42% 0px -42% 0px", threshold: 0 },
+    );
+    refs.current.forEach((el) => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [wide]);
+
+  return (
+    <div className="explainer">
+      {wide ? (
+        <div className="explainer-stage">
+          <div className="explainer-sticky"><Stage step={active} /></div>
+        </div>
+      ) : null}
+      <ol className="explainer-steps">
+        {STEPS.map((s, i) => (
+          <li
+            key={s.title}
+            data-step={i}
+            data-active={wide ? i === active : undefined}
+            ref={(el) => { refs.current[i] = el; }}
+            className="ex-step"
+          >
+            {!wide ? <div className="ex-inline"><Stage step={i} /></div> : null}
+            <p className="ex-num mono">{String(i + 1).padStart(2, "0")} / 05</p>
+            <h3>{s.title}</h3>
+            <p>{s.text}</p>
+            <SiteLink to={s.link.to} hash={s.link.hash} className="text-link">{s.link.label}</SiteLink>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
+const GPUS = 64n;
+const HOURS = 720n;
+
+function WorkedExample() {
+  const live = useLiveSeries();
+  const model = useMemo(() => {
+    if (!live.market || !live.band || live.index === null || live.long === null) return null;
+    const exposure: Exposure = { gpus: GPUS, hours: HOURS, band: live.band, priceDecimals: live.pd, collateralDecimals: live.market.collateral.decimals };
+    const claims = claimsToHold(exposure);
+    const premium = (claims * live.long) / live.longScale;
+    return { exposure, claims, premium };
+  }, [live.market, live.band, live.index, live.long, live.longScale, live.pd]);
+
+  if (!model || !live.market || !live.band || live.index === null || live.long === null) {
+    return <Pending title="Waiting for the live series">The worked example uses the live band and the feed&rsquo;s current mark.</Pending>;
+  }
+  const cd = live.market.collateral.decimals;
+  const L = raw(live.band.lower, live.pd);
+  const U = raw(live.band.upper, live.pd);
+  const W = U - L;
+  const today = raw(live.index, live.pd);
+  const money = (v: bigint) => usd(v, cd, 0);
+  const scenarios = [
+    { key: "below", title: "Below the floor", price: Math.max(0.01, L - W * 0.5), note: "The long pays nothing. You keep the cheaper GPUs and lose the premium." },
+    { key: "today", title: "Where it stands today", price: today, note: "Inside the band, so a rise from here is paid back by the claims." },
+    { key: "above", title: "Above the cap", price: U + W * 0.5, note: "The claims have paid their maximum. Each further dollar comes out of your pocket." },
+  ];
+  return (
+    <div className="worked">
+      <ol className="worked-math">
+        <li>
+          <span className="mono">1</span>
+          <p>Your exposure: <strong>{GPUS.toString()} GPUs for {HOURS.toString()} hours</strong> a month is <strong>{(GPUS * HOURS).toLocaleString("en-US")} GPU-hours</strong>. This is an example input; the app takes yours.</p>
+        </li>
+        <li>
+          <span className="mono">2</span>
+          <p>The live band runs from <strong>${trimmed(L, 2, 2)}</strong> to <strong>${trimmed(U, 2, 2)}</strong>, so it is <strong>${trimmed(W, 2, 2)}</strong> wide. Hedge size is GPU-hours of exposure x band width: {(GPUS * HOURS).toLocaleString("en-US")} x ${trimmed(W, 2, 2)} = <strong>{fixed(model.claims, live.market.claims.decimals, 0)} claims</strong>, each paying up to $1.</p>
+        </li>
+        <li>
+          <span className="mono">3</span>
+          <p>The index stands at <strong>${trimmed(today, 4, 6)}</strong>, so one long claim is worth ({trimmed(today, 4, 6)} - {trimmed(L, 2, 2)}) / {trimmed(W, 2, 2)} = <strong>${trimmed(Number(live.long) / Number(live.longScale), 4, 6)}</strong> (the feed&rsquo;s mark). {fixed(model.claims, live.market.claims.decimals, 0)} claims at that mark cost <strong>{money(model.premium)}</strong>, which is not a Kuru quote.</p>
+        </li>
+        <li>
+          <span className="mono">4</span>
+          <p>Between the floor and the cap your all-in monthly bill is held at about <strong>{money(lockedMonthlyBill(model.exposure) + model.premium)}</strong>: your GPU-hours at the floor, plus the premium. The most the claims can ever pay is <strong>{money(maxPayout(model.claims))}</strong>.</p>
+        </li>
+      </ol>
+      <div className="scenarios scenarios--cards">
+        {scenarios.map((s) => {
+          const o = outcomeAt(model.exposure, model.claims, model.premium, BigInt(Math.round(s.price * 10 ** live.pd)));
+          return (
+            <div key={s.key} className="scenario">
+              <h4>{s.title}</h4>
+              <p className="num">index ${trimmed(s.price, 2, 4)}</p>
+              <dl className="num">
+                <div><dt>unhedged bill</dt><dd>{money(o.unhedged)}</dd></div>
+                <div><dt>claims pay</dt><dd>{money(o.payout)}</dd></div>
+                <div><dt>net bill</dt><dd><strong>{money(o.hedged)}</strong></dd></div>
+              </dl>
+              <p className="sub">{s.note}</p>
+            </div>
+          );
+        })}
+      </div>
+      <Src contract="ComputeMarket, PiryMarkFeed" address={liveSubject.contracts.market} block={live.market.block.number} />
+    </div>
+  );
+}
+
+function Fallback() {
+  const live = useLiveSeries();
+  const t = live.market?.terms;
+  return (
+    <div className="fallback brackets">
+      <div>
+        <p className="mono fb-tag">SAFETY VALVE</p>
+        <h3>Funds can never be locked behind a silent oracle</h3>
+        <p>
+          If no valid report arrives within {t ? duration(Number(t.fallbackDelay)) : "seven days"} of the period end, anyone can settle the market at the band midpoint
+          {t ? `, ${usd((t.lower + t.upper) / 2n, live.pd, 2)} here` : ""}. The fallback has its own event, <span className="mono">SettledByFallback</span>, and its own label on the evidence page, so it can never pass for an oracle report. A settled market also pays out a holder who only ever held one leg.
+        </p>
+        {t ? <p className="sub num">The window opens {utc(t.periodEnd + t.fallbackDelay)}.</p> : null}
+      </div>
+    </div>
+  );
+}
+
+export default function HowItWorks() {
+  usePage("How it works", "Mint a pair, buy the long on Kuru, watch the index move, let Chainlink CRE settle it, and redeem. A worked example with the live band and the cap made honest.");
+  return (
+    <>
+      <header className="page-head">
+        <div className="wrap">
+          <BlockHead
+            as="h1"
+            kicker="How it works"
+            title={<>Five steps from a GPU bill to <em>a capped hedge</em></>}
+            lede="Scroll through the life of a claim. The pictures use the live series and the settled fast demo; anything that is only an illustration says so."
+          />
+        </div>
+      </header>
+
+      <section className="block block--flush" aria-label="Step by step">
+        <div className="wrap"><Explainer /></div>
+      </section>
+
+      <section className="block" aria-labelledby="worked-title">
+        <div className="wrap">
+          <Reveal>
+            <BlockHead kicker="Worked example" index="A" title={<>Real numbers, <em>live band</em></>} lede={`The band and the mark are read from ${config.chain.name} right now. Only the 64 GPUs and 720 hours are an example.`} id="worked-title" />
+          </Reveal>
+          <Reveal delay={0.05}><WorkedExample /></Reveal>
+        </div>
+      </section>
+
+      <section className="block" aria-labelledby="cap-honest-title">
+        <div className="wrap">
+          <Reveal>
+            <BlockHead
+              kicker="The cap, made honest"
+              index="B"
+              title={<>What a Piry hedge does <em>not</em> do</>}
+              id="cap-honest-title"
+            />
+          </Reveal>
+          <ul className="honest-list">
+            {[
+              ["It is capped.", "Above the cap the claims pay nothing more. Every extra dollar of GPU price is yours, and the chart above shows exactly where that starts."],
+              ["It costs a premium.", "If prices fall, you keep the cheaper GPUs but lose what you paid for the claims. A hedge that cannot lose money would not be a hedge."],
+              ["It hedges a price, not an invoice.", "The claims settle against an index of public prices. Your own provider's bill can differ from it, and nothing is reimbursed."],
+              ["It cannot be liquidated.", "Claims are fully collateralized, with no margin and no liquidation. The most you can lose is the premium you paid."],
+            ].map(([head, body], i) => (
+              <li key={head}>
+                <Reveal delay={i * 0.05}>
+                  <strong>{head}</strong>
+                  <span>{body}</span>
+                </Reveal>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="block" aria-labelledby="fallback-title">
+        <div className="wrap">
+          <Reveal>
+            <BlockHead kicker="Failure mode" index="C" title={<>If the oracle goes quiet, <em>the market still settles</em></>} id="fallback-title" />
+          </Reveal>
+          <Reveal delay={0.05}><Fallback /></Reveal>
+        </div>
+      </section>
+
+      <section className="cta-band">
+        <div className="wrap cta-inner">
+          <div>
+            <h2 className="block-title">Try it on the live series</h2>
+            <p className="lede">Size a hedge with your own numbers, or read the refusals first.</p>
+          </div>
+          <div className="cta-actions">
+            <SiteLink to="/app" hash="exposure" className="btn">Size your hedge</SiteLink>
+            <SiteLink to="/evidence" className="btn secondary">Read the evidence</SiteLink>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}

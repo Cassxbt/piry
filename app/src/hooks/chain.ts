@@ -2,8 +2,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import type { Address, PublicClient } from "viem";
 import { usePublicClient } from "wagmi";
-import { chain, config } from "../config";
-import { readHolder, readMark, readMarket, type MarketSnapshot } from "../lib/reads";
+import { chain, config, primarySubject } from "../config";
+import type { SeriesSubject } from "../config/types";
+import { readHolder, readMark, readMarket, readShortMark, type MarketSnapshot } from "../lib/reads";
+import { logSources } from "../lib/logsClient";
 import { findSettlement } from "../lib/settlement";
 import { checkEvidence, fetchText } from "../lib/evidence";
 
@@ -15,9 +17,9 @@ export function useClient(): PublicClient {
   return client as PublicClient;
 }
 
-export function useMarket() {
+export function useSeriesMarket(subject: SeriesSubject) {
   const pc = useClient();
-  const address = config.contracts.market;
+  const address = subject.contracts.market;
   return useQuery({
     queryKey: ["market", address],
     queryFn: () => readMarket(pc, address as Address),
@@ -26,12 +28,27 @@ export function useMarket() {
   });
 }
 
-export function useMark() {
+export const useMarket = () => useSeriesMarket(primarySubject);
+
+export function useSeriesMark(subject: SeriesSubject) {
   const pc = useClient();
-  const address = config.contracts.markFeed;
+  const address = subject.contracts.markFeed;
   return useQuery({
     queryKey: ["mark", address],
     queryFn: () => readMark(pc, address as Address),
+    enabled: address !== null,
+    refetchInterval: POLL_MS,
+  });
+}
+
+export const useMark = () => useSeriesMark(primarySubject);
+
+export function useSeriesShortMark(subject: SeriesSubject) {
+  const pc = useClient();
+  const address = subject.contracts.shortFeed;
+  return useQuery({
+    queryKey: ["short-mark", address],
+    queryFn: () => readShortMark(pc, address as Address),
     enabled: address !== null,
     refetchInterval: POLL_MS,
   });
@@ -47,24 +64,24 @@ export function useHolder(snapshot: MarketSnapshot | undefined, holder: Address 
   });
 }
 
-export function useSettlement(snapshot: MarketSnapshot | undefined) {
+export function useSettlement(snapshot: MarketSnapshot | undefined, subject: SeriesSubject) {
   const pc = useClient();
   const settled = snapshot?.state.settled ?? false;
   return useQuery({
     queryKey: ["settlement", snapshot?.address, settled],
-    queryFn: () => findSettlement(pc, config, snapshot as MarketSnapshot),
+    queryFn: () => findSettlement(pc, { evidenceBase: subject.evidenceBase, deployBlock: subject.deployBlock, chain: config.chain }, snapshot as MarketSnapshot, logSources(pc)),
     enabled: snapshot !== undefined && settled,
     staleTime: Infinity,
     retry: false,
   });
 }
 
-export function useEvidenceFile(snapshot: MarketSnapshot | undefined) {
+export function useEvidenceFile(snapshot: MarketSnapshot | undefined, subject: SeriesSubject) {
   const settled = snapshot?.state.settled ?? false;
   return useQuery({
-    queryKey: ["evidence", config.evidenceBase, snapshot?.state.evidenceHash],
+    queryKey: ["evidence", subject.evidenceBase, snapshot?.state.evidenceHash],
     queryFn: async () => {
-      const text = await fetchText(`${config.evidenceBase}/evidence.json`);
+      const text = await fetchText(`${subject.evidenceBase}/evidence.json`);
       if (text === null || !snapshot) return null;
       return { text, check: checkEvidence(text, { evidenceHash: snapshot.state.evidenceHash, price: snapshot.state.settlementPrice }) };
     },

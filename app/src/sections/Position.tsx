@@ -154,7 +154,7 @@ export function Position() {
   return (
     <Section
       id="position"
-      index="04"
+      index="4/6"
       kicker="Position"
       title={
         <>
@@ -203,8 +203,8 @@ export function Position() {
                     </div>
                   </div>
                   <div className="stack" style={{ marginTop: 16, gap: 6 }}>
-                    {config.kuru.longMarket && wallet ? (
-                      <p className="sub">Held includes {fixed(inKuru(snapshot.claims.long), snapshot.claims.decimals)} long in your Kuru trading balance. Withdraw it to your wallet before redeeming.</p>
+                    {(config.kuru.longMarket || config.kuru.shortMarket) && wallet ? (
+                      <p className="sub">Held includes {fixed(inKuru(snapshot.claims.long), snapshot.claims.decimals)} long and {fixed(inKuru(snapshot.claims.short), snapshot.claims.decimals)} short in your Kuru trading balance. Withdraw it to your wallet before redeeming.</p>
                     ) : null}
                     {answer === null ? (
                       <p className="sub">

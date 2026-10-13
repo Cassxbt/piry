@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Pending } from "../../components/Pending";
 import { Src } from "../../components/Src";
-import { config } from "../../config";
+import type { SeriesSubject } from "../../config/types";
 import { useLedger } from "../../hooks/ledger";
 import { blockLabel, shortAddress, usd, utc } from "../../lib/format";
 import type { Delivery, OffchainRefusal } from "../../lib/ledger";
@@ -55,10 +55,10 @@ function Row({ d, snapshot }: { d: Delivery; snapshot: MarketSnapshot }) {
     <div className={`ledger-item ${toneClass}`}>
       <span className="ledger-dot" aria-hidden />
       <div className="ledger-body">
-        <h4>
+        <h3>
           {title}
           <span className={`chip ${toneClass} plain`}>{chip}</span>
-        </h4>
+        </h3>
         <p className="sub">Events in this transaction: <span className="mono">{eventLine}</span></p>
         {d.outcome === "refused" || d.outcome === "reverted" ? (
           <>
@@ -105,10 +105,10 @@ function OffchainRow({ o }: { o: OffchainRefusal }) {
     <div className="ledger-item bad">
       <span className="ledger-dot" aria-hidden />
       <div className="ledger-body">
-        <h4>
+        <h3>
           {o.title}
           <span className="chip bad plain">Stopped off-chain</span>
-        </h4>
+        </h3>
         <p><strong>Refused by the workflow before anything was sent: </strong><span className="mono">{o.reason}</span>.</p>
         {o.note ? <p className="sub">{o.note}</p> : null}
         <p className="sub">This one has no transaction, so it cannot be checked on-chain. It is listed because the run reported it, and is not counted among the on-chain refusals.</p>
@@ -122,10 +122,10 @@ function FallbackRow({ record, snapshot }: { record: SettlementRecord; snapshot:
     <div className="ledger-item ok">
       <span className="ledger-dot" aria-hidden />
       <div className="ledger-body">
-        <h4>
+        <h3>
           Settled by the permissionless fallback at {usd(record.price, snapshot.terms.priceDecimals, 6)}
           <span className="chip warn plain">Fallback</span>
-        </h4>
+        </h3>
         <p className="sub">Events in this transaction: <span className="mono">SettledByFallback</span>. No oracle report was involved; the price is the band midpoint.</p>
         <div className="ledger-meta">
           <TxLink hash={record.txHash} />
@@ -147,8 +147,8 @@ function Counter({ value, label, tone }: { value: number; label: string; tone?: 
   );
 }
 
-export function Ledger({ snapshot, settlement, settlementReady }: { snapshot: MarketSnapshot; settlement: SettlementRecord | null; settlementReady: boolean }) {
-  const ledger = useLedger(snapshot, settlement, settlementReady);
+export function Ledger({ subject, snapshot, settlement, settlementReady }: { subject: SeriesSubject; snapshot: MarketSnapshot; settlement: SettlementRecord | null; settlementReady: boolean }) {
+  const ledger = useLedger(subject, snapshot, settlement, settlementReady);
   const data = ledger.data;
   const deliveries = data?.deliveries ?? [];
   const marks = deliveries.filter((d) => d.outcome === "mark-accepted");
@@ -183,7 +183,7 @@ export function Ledger({ snapshot, settlement, settlementReady }: { snapshot: Ma
     <div className="panel">
       <div className="panel-head">
         <span className="label">Accepted and refused reports, one ledger</span>
-        <Src contract="Forwarder ReportProcessed" address={config.contracts.forwarder} block={snapshot.block.number} />
+        <Src contract="Forwarder ReportProcessed" address={subject.contracts.forwarder} block={snapshot.block.number} />
       </div>
       <div className="panel-pad stack">
         <div className="scoreboard" role="group" aria-label="Delivery outcomes">
@@ -201,16 +201,20 @@ export function Ledger({ snapshot, settlement, settlementReady }: { snapshot: Ma
           <div className="stack" style={{ gap: 6 }}>
             {data.scan ? (
               <p className="sub num">
-                Scanned blocks {blockLabel(data.scan.fromBlock)} to {blockLabel(data.scan.toBlock)} for ReportProcessed events ({data.scan.requests} {data.scan.requests === 1 ? "query" : "queries"} of up to {config.chain.getLogsMaxRange.toLocaleString("en-US")} blocks).
+                Scanned blocks {blockLabel(data.scan.fromBlock)} to {blockLabel(data.scan.toBlock)} for ReportProcessed events via {data.scan.via} ({data.scan.requests} {data.scan.requests === 1 ? "query" : "queries"} of up to {data.scan.chunk.toLocaleString("en-US")} blocks).
+                {data.scan.failedSources.length > 0 ? ` ${data.scan.failedSources.join(", ")} did not answer, so the scan fell back to ${data.scan.via} with smaller pages.` : ""}
                 {data.scan.truncated ? " Older blocks were not scanned; only transactions pinned in the manifest are shown from before this window." : ""}
               </p>
             ) : (
               <p className="sub">The event scan failed on this RPC, so only pinned transactions are shown.</p>
             )}
+            {data.manifestIgnored ? (
+              <p className="callout warn">A pinned-transaction file exists at {subject.evidenceBase}/deliveries.json, but it names a different market, so it was ignored.</p>
+            ) : null}
             <p className="sub">
               {data.manifestCount === null
-                ? `No pinned-transaction manifest at ${config.evidenceBase}/deliveries.json; discovery relies on the scan.`
-                : `${data.manifestCount} pinned transaction${data.manifestCount === 1 ? "" : "s"} from ${config.evidenceBase}/deliveries.json. A pin only locates a transaction; its outcome is still read from the chain.`}
+                ? `No pinned-transaction manifest at ${subject.evidenceBase}/deliveries.json; discovery relies on the scan.`
+                : `${data.manifestCount} pinned transaction${data.manifestCount === 1 ? "" : "s"} from ${subject.evidenceBase}/deliveries.json. A pin only locates a transaction; its outcome is still read from the chain.`}
             </p>
             <div className="row">
               <button type="button" className="btn secondary small" onClick={() => ledger.refetch()} disabled={ledger.isFetching}>{ledger.isFetching ? "Scanning" : "Rescan"}</button>

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Field } from "../components/Field";
-import { HedgeChart, chartDomain } from "../components/HedgeChart";
+import { ScenarioChart } from "../components/charts/lazy";
 import { Section } from "../components/Section";
 import { Src } from "../components/Src";
 import { config } from "../config";
 import { useMark, useMarket } from "../hooks/chain";
 import { useKuruBook } from "../hooks/kuru";
-import { claimsToHold, lockedMonthlyBill, maxPayout, outcomeAt, regimeOf, type Exposure } from "../lib/hedge";
+import { chartDomain, claimsToHold, lockedMonthlyBill, maxPayout, outcomeAt, regimeOf, type Exposure } from "../lib/hedge";
 import { fixed, parseAmount, usd } from "../lib/format";
 import { sizeFromBaseAtoms, walkAsks } from "../lib/kuruMath";
 import { payouts } from "../lib/payout";
@@ -113,7 +113,7 @@ export function Calculator() {
   return (
     <Section
       id="exposure"
-      index="02"
+      index="2/6"
       kicker="Exposure"
       title={
         <>
@@ -178,7 +178,7 @@ export function Calculator() {
                 <span className="label">Long claims to hold</span>
                 <span className="figure num">{calc ? fixed(calc.claims, claimDecimals, 0) : "-"}</span>
                 <span className="cap">
-                  {g?.toString() ?? "?"} GPUs x {h?.toString() ?? "?"} h x ${(U - L).toFixed(2)} band width. Sized for the move between floor and cap only.
+                  Hedge size = GPU-hours of exposure x band width. {g !== null && h !== null ? `${(g * h).toLocaleString("en-US")} GPU-hours` : "GPU-hours"} x ${(U - L).toFixed(2)} = {calc ? fixed(calc.claims, claimDecimals, 0) : "?"} claims, each paying up to $1. It covers the move between floor and cap only.
                 </span>
               </div>
               <div className="result">
@@ -221,14 +221,8 @@ export function Calculator() {
             </div>
             {calc ? (
               <>
-                <div className="chart-wrap chart">
-                  <HedgeChart exposure={calc.exposure} claims={calc.claims} premium={premium} today={today} scrub={scrub} domain={domain} onScrub={setScrub} />
-                </div>
-                <div className="legend">
-                  <span><i className="dash" style={{ color: "var(--ink-3)" }} />Unhedged bill</span>
-                  <span><i style={{ color: "var(--ink)", borderTopWidth: 3 }} />Hedged bill, premium included</span>
-                  <span style={{ color: "var(--long)" }}>Shaded green: hedge saves money</span>
-                  <span style={{ color: "var(--short)" }}>Shaded rust: premium costs more than the hedge pays</span>
+                <div className="chart-wrap">
+                  <ScenarioChart exposure={calc.exposure} claims={calc.claims} premium={premium} today={today} scrub={scrub} domain={domain} onScrub={setScrub} surface="sheet" />
                 </div>
                 <div className="scrub">
                   <label className="sr-only" htmlFor="scrub">Settlement price scenario</label>
@@ -253,7 +247,7 @@ export function Calculator() {
                     const o = row(s.price);
                     return (
                       <div key={s.key}>
-                        <h4>{s.title}</h4>
+                        <h3>{s.title}</h3>
                         <p className="fig num">at ${s.price.toFixed(2)}: unhedged {o ? money(o.unhedged) : "-"}</p>
                         <p className="fig num">claims pay {o ? money(o.payout) : "-"}, net {o ? money(o.hedged) : "-"}</p>
                         <p>{s.note}</p>

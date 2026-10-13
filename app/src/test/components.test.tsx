@@ -1,6 +1,8 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { BandRuler } from "../components/BandRuler";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import BandGauge from "../components/charts/BandGauge";
+import ScenarioChart from "../components/charts/ScenarioChart";
+import { chartDomain } from "../lib/hedge";
 import { OrderBook } from "../components/OrderBook";
 import type { KuruBook } from "../lib/kuru";
 import { rateLimitedFetch } from "../lib/rateLimit";
@@ -32,13 +34,14 @@ describe("OrderBook", () => {
     const rows = screen.getAllByRole("row").slice(1);
     expect(rows.map((r) => within(r).getAllByRole("cell")[0]?.textContent)).toEqual(["0.5300", "0.5200", "0.5000"]);
     expect(within(rows[0]!).getAllByRole("cell")[2]?.textContent).toBe("30.00");
-    expect(screen.getByText(/Spread 0\.0200/)).toBeTruthy();
+    expect(screen.getAllByText(/Spread 0\.0200/)).toHaveLength(2);
   });
 
   it("says so when a side is empty instead of inventing liquidity", () => {
     render(<OrderBook book={{ ...book, bids: [] }} symbol="PIRY-L" />);
     expect(screen.getByText("No bids resting on the book.")).toBeTruthy();
     expect(screen.getByText(/one side is empty/)).toBeTruthy();
+    expect(screen.queryByText(/Mid price/)).toBeNull();
   });
 
   it("cites its source contract and block", () => {
@@ -48,15 +51,37 @@ describe("OrderBook", () => {
   });
 });
 
-describe("BandRuler", () => {
+describe("BandGauge", () => {
   it("labels the floor, the cap and any marker, and describes itself for screen readers", () => {
     render(
-      <BandRuler lower={2} upper={4} markers={[{ value: 2.66, label: "settled $2.66", tone: "long" }]} money={(v) => `$${v}`} ariaLabel="Payout band $2 to $4" />,
+      <BandGauge lower={2} upper={4} markers={[{ value: 2.66, label: "settled $2.66", tone: "accent" }]} money={(v: number) => `$${v}`} ariaLabel="Payout band $2 to $4" />,
     );
     expect(screen.getByRole("img", { name: "Payout band $2 to $4" })).toBeTruthy();
-    expect(screen.getByText("FLOOR $2")).toBeTruthy();
-    expect(screen.getByText("CAP $4")).toBeTruthy();
+    expect(screen.getByText("$2")).toBeTruthy();
+    expect(screen.getByText("$4")).toBeTruthy();
     expect(screen.getByText("settled $2.66")).toBeTruthy();
+  });
+
+  it("clamps a marker outside the window to the track instead of drawing off it", () => {
+    const { container } = render(<BandGauge lower={2} upper={4} markers={[{ value: 99, label: "far", tone: "accent" }]} money={(v: number) => `$${v}`} ariaLabel="gauge" />);
+    expect((container.querySelector(".gauge-marker") as HTMLElement).style.left).toBe("100%");
+  });
+});
+
+describe("ScenarioChart", () => {
+  beforeAll(() => {
+    window.matchMedia = ((query: string) => ({ matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {} })) as unknown as typeof window.matchMedia;
+  });
+
+  const exposure = { gpus: 8n, hours: 100n, band: { lower: 2_500_000n, upper: 4_500_000n }, priceDecimals: 6, collateralDecimals: 6 };
+  const claims = 1_600_000_000n;
+
+  it("leads with the net bill at the scrubbed price and keeps every number in a table view", () => {
+    const [min, max] = chartDomain(2.5, 4.5, 3.39);
+    render(<ScenarioChart exposure={exposure} claims={claims} premium={0n} today={3.39} scrub={3.5} domain={[min, max]} onScrub={() => {}} />);
+    expect(screen.getByText(/Monthly bill if the index settles at \$3\.50/)).toBeTruthy();
+    expect(screen.getByText(/Table view/)).toBeTruthy();
+    expect(screen.getAllByText("$2,000").length).toBeGreaterThan(0);
   });
 });
 

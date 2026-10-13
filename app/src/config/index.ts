@@ -8,6 +8,8 @@ import type {
   NetworkConfig,
   NetworkName,
   NetworkSettings,
+  SeriesChoice,
+  SeriesSubject,
 } from "./types";
 
 const settings: Record<NetworkName, NetworkSettings> = {
@@ -21,8 +23,9 @@ const manifests = import.meta.glob<DeploymentManifest>("../../../deployments/*.j
   import: "default",
 });
 
-function manifestFor(network: NetworkName, chainId: number): DeploymentManifest | null {
-  const entry = Object.entries(manifests).find(([path]) => path.endsWith(`/${network}.json`));
+function manifestFor(network: NetworkName, chainId: number, variant: string | null): DeploymentManifest | null {
+  const file = variant ? `${network}.${variant}.json` : `${network}.json`;
+  const entry = Object.entries(manifests).find(([path]) => path.endsWith(`/${file}`));
   const manifest = entry?.[1];
   return manifest && manifest.status === "complete" && manifest.chainId === chainId ? manifest : null;
 }
@@ -33,15 +36,27 @@ function pickNetwork(): NetworkName {
   return requested in settings ? (requested as NetworkName) : "monad-testnet";
 }
 
-function resolve(network: NetworkName): NetworkConfig {
-  const base = settings[network];
-  const rpcOverride = import.meta.env.VITE_RPC_URL as string | undefined;
-  const manifest = manifestFor(network, base.chain.id);
+function pickVariant(network: NetworkName): string | null {
+  const known = settings[network].variants ?? {};
+  const fromUrl = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("series");
+  const requested = fromUrl ?? (import.meta.env.VITE_SERIES as string | undefined) ?? null;
+  return requested !== null && requested in known && manifestFor(network, settings[network].chain.id, requested) !== null ? requested : null;
+}
 
+interface Deployment {
+  contracts: ContractAddresses;
+  deployed: Record<string, DeployedContract>;
+  deployBlock: number | null;
+  deployer: Address | null;
+  settlementMode: "simulation" | "strict" | null;
+}
+
+function deploymentFor(network: NetworkName, chainId: number, variant: string | null): Deployment {
+  const manifest = manifestFor(network, chainId, variant);
   const deployed: Record<string, DeployedContract> = {};
   for (const [key, entry] of Object.entries(manifest?.contracts ?? {})) {
     if (!entry.address) continue;
-    if (!isAddress(entry.address)) throw new Error(`Invalid address for ${key} in deployments/${network}.json`);
+    if (!isAddress(entry.address)) throw new Error(`Invalid address for ${key} in the ${network} deployment manifest`);
     deployed[key] = {
       address: entry.address,
       txHash: entry.txHash ?? null,
@@ -50,29 +65,18 @@ function resolve(network: NetworkName): NetworkConfig {
     };
   }
   const at = (key: string): Address | null => deployed[key]?.address ?? null;
-  const contracts: ContractAddresses = {
-    market: at("market"),
-    longClaim: at("longClaim"),
-    shortClaim: at("shortClaim"),
-    collateral: at("collateral"),
-    receiver: at("settlementReceiver"),
-    markFeed: at("markFeed"),
-    forwarder: at("forwarder"),
-  };
   const blocks = Object.values(deployed).map((c) => c.blockNumber).filter((n): n is number => n !== null && Number.isFinite(n));
-
-  // Development only: preview the Trade step against an existing Kuru market (for example on a local fork).
-  const kuruOverride = import.meta.env.VITE_KURU_LONG_MARKET as string | undefined;
-  if (kuruOverride) base.kuru = { ...base.kuru, longMarket: kuruOverride as Address };
-
-  for (const value of [base.kuru.longMarket, base.kuru.shortMarket, base.kuru.accountCore, base.kuru.quoteToken]) {
-    if (value !== null && !isAddress(value)) throw new Error(`Invalid address in config/${network}.json: ${value}`);
-  }
-
   return {
-    ...base,
-    chain: rpcOverride ? { ...base.chain, rpcUrl: rpcOverride } : base.chain,
-    contracts,
+    contracts: {
+      market: at("market"),
+      longClaim: at("longClaim"),
+      shortClaim: at("shortClaim"),
+      collateral: at("collateral"),
+      receiver: at("settlementReceiver"),
+      markFeed: at("markFeed"),
+      shortFeed: at("shortFeed"),
+      forwarder: at("forwarder"),
+    },
     deployed,
     deployBlock: blocks.length ? Math.min(...blocks) : null,
     deployer: manifest?.deployer ?? null,
@@ -80,7 +84,60 @@ function resolve(network: NetworkName): NetworkConfig {
   };
 }
 
+function resolve(network: NetworkName): NetworkConfig {
+  const variant = pickVariant(network);
+  const chosen = variant ? settings[network].variants?.[variant] : undefined;
+  const base: NetworkSettings = chosen ? { ...settings[network], series: chosen.series, evidenceBase: chosen.evidenceBase } : settings[network];
+  const rpcOverride = import.meta.env.VITE_RPC_URL as string | undefined;
+  const logsOverride = import.meta.env.VITE_LOGS_RPC_URL as string | undefined;
+  const chainId = base.chain.id;
+  const deployment = deploymentFor(network, chainId, variant);
+
+  const seriesChoices: SeriesChoice[] = [{ id: null, label: "Live series", blurb: "The series that settles during judging." }];
+  const subjects: SeriesSubject[] = [];
+  for (const [id, v] of Object.entries(settings[network].variants ?? {})) {
+    if (manifestFor(network, chainId, id) === null) continue;
+    seriesChoices.push({ id, label: v.label, blurb: v.blurb });
+    subjects.push({ id, label: v.label, evidenceTitle: v.evidenceTitle, series: v.series, evidenceBase: v.evidenceBase, ...deploymentFor(network, chainId, id) });
+  }
+  subjects.push({
+    id: null,
+    label: "Live series",
+    evidenceTitle: settings[network].evidenceTitle,
+    series: settings[network].series,
+    evidenceBase: settings[network].evidenceBase,
+    ...deploymentFor(network, chainId, null),
+  });
+
+  // Development only: preview the Trade step against an existing Kuru market (for example on a local fork).
+  const kuruOverride = import.meta.env.VITE_KURU_LONG_MARKET as string | undefined;
+  if (kuruOverride) base.kuru = { ...base.kuru, longMarket: kuruOverride as Address };
+  const kuruShortOverride = import.meta.env.VITE_KURU_SHORT_MARKET as string | undefined;
+  if (kuruShortOverride) base.kuru = { ...base.kuru, shortMarket: kuruShortOverride as Address };
+
+  for (const value of [base.kuru.longMarket, base.kuru.shortMarket, base.kuru.accountCore, base.kuru.quoteToken]) {
+    if (value !== null && !isAddress(value)) throw new Error(`Invalid address in config/${network}.json: ${value}`);
+  }
+
+  return {
+    ...base,
+    variant,
+    subjects,
+    seriesChoices,
+    chain: {
+      ...base.chain,
+      rpcUrl: rpcOverride ?? base.chain.rpcUrl,
+      logsRpcUrl: logsOverride ?? base.chain.logsRpcUrl,
+    },
+    ...deployment,
+  };
+}
+
 export const config: NetworkConfig = resolve(pickNetwork());
+
+// The series every step other than the evidence step is about: the live one unless ?series= picks another.
+export const primarySubject: SeriesSubject =
+  config.subjects.find((s) => s.id === config.variant) ?? (config.subjects[config.subjects.length - 1] as SeriesSubject);
 
 export const chain: Chain = defineChain({
   id: config.chain.id,

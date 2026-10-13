@@ -65,3 +65,9 @@ export function regimeOf(price: bigint, { lower, upper }: Band): Regime {
 export function lockedMonthlyBill(e: Exposure): bigint {
   return monthlyBill(e, e.band.lower);
 }
+
+// The price window a scenario chart shows: wide enough to see the flat region and both slopes, and the live price.
+export function chartDomain(lower: number, upper: number, today: number): [number, number] {
+  const span = upper - lower;
+  return [Math.max(0, Math.min(lower - span * 0.6, today * 0.75)), Math.max(upper + span * 1.1, today * 1.2)];
+}

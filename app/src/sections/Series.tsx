@@ -1,8 +1,10 @@
-import { BandRuler, type RulerMarker } from "../components/BandRuler";
+import BandGauge, { type GaugeMarker } from "../components/charts/BandGauge";
+import { Section } from "../components/Section";
 import { PendingInline } from "../components/Pending";
 import { Src } from "../components/Src";
-import { chain, config } from "../config";
-import { useChainNow, useMark, useMarket } from "../hooks/chain";
+import { config, primarySubject } from "../config";
+import { useChainNow, useMark, useMarket, useSeriesShortMark } from "../hooks/chain";
+import { MarkHistoryChart } from "../components/charts/lazy";
 import { duration, fixed, usd, utc } from "../lib/format";
 import { DELIVERY, markLabel, phaseLabel } from "../lib/labels";
 import { phaseOf, type MarketSnapshot } from "../lib/reads";
@@ -14,6 +16,7 @@ const CONTRACT_NAMES: Record<string, string> = {
   collateral: "Collateral token",
   settlementReceiver: "Settlement receiver",
   markFeed: "PiryMarkFeed",
+  shortFeed: "PiryShortFeed",
   forwarder: "Forwarder",
 };
 
@@ -26,7 +29,8 @@ function periodLine(s: MarketSnapshot, now: bigint | null): string {
   return `Ended ${duration(Number(t - s.terms.periodEnd))} ago`;
 }
 
-function SeriesCard() {
+export function SeriesCard() {
+  const shortMark = useSeriesShortMark(primarySubject);
   const market = useMarket();
   const mark = useMark();
   const snapshot = market.data;
@@ -35,19 +39,14 @@ function SeriesCard() {
   const phase = snapshot ? phaseLabel(phaseOf(snapshot)) : null;
 
   const unit = (raw: bigint, digits = 2) => usd(raw, snapshot?.terms.priceDecimals ?? 6, digits);
-  const markers: RulerMarker[] = [];
+  const markers: GaugeMarker[] = [];
   if (snapshot) {
     const price = 10 ** snapshot.terms.priceDecimals;
     if (snapshot.state.settled) {
-      markers.push({ value: Number(snapshot.state.settlementPrice) / price, label: `settled ${unit(snapshot.state.settlementPrice, 4)}`, tone: "long" });
+      markers.push({ value: Number(snapshot.state.settlementPrice) / price, label: `settled ${unit(snapshot.state.settlementPrice, 4)}`, tone: "accent" });
     } else if (mark.data?.status === "ok" && mark.data.indexPrice !== null) {
-      markers.push({ value: Number(mark.data.indexPrice) / price, label: `index ${unit(mark.data.indexPrice, 4)}`, tone: "ink" });
+      markers.push({ value: Number(mark.data.indexPrice) / price, label: `index ${unit(mark.data.indexPrice, 4)}`, tone: "accent" });
     }
-  }
-
-  const sanity = config.series.source.sanityBand;
-  if (snapshot && config.series.dataMode === "LIVE" && sanity?.value) {
-    markers.push({ value: Number(sanity.value), label: `${sanity.name.split(" ")[0]} ref $${sanity.value}`, tone: "short" });
   }
 
   return (
@@ -90,14 +89,21 @@ function SeriesCard() {
                   <>
                     <span className="chip warn plain">Synthetic demo data on this deployment</span>
                     <span className="sub">{config.series.source.demo ?? "No real price source is attached."}</span>
-                    <span className="sub">Intended live index: {config.series.source.name}. {config.series.source.summary}</span>
+                    <span className="sub">Intended live index: {config.series.source.name}.</span>
                   </>
                 ) : (
-                  <span className="sub">Source: {config.series.source.name}. {config.series.source.summary}</span>
+                  <span className="sub">Index: {config.series.source.name}.</span>
                 )}
+                {config.series.source.minValid !== null ? (
+                  <span className="sub">
+                    {config.series.source.components.length} public sources; a reading needs at least {config.series.source.minValid} valid. Source table in the evidence step.
+                  </span>
+                ) : null}
                 {config.series.source.sanityBand ? (
                   <span className="sub">
-                    Sanity band: {config.series.source.sanityBand.name} ({config.series.source.sanityBand.license}), not used for settlement.
+                    Sanity band: {config.series.source.sanityBand.name}
+                    {config.series.source.sanityBand.value ? `, $${config.series.source.sanityBand.value}` : ""}
+                    {config.series.source.sanityBand.asOf ? `, ${config.series.source.sanityBand.asOf}` : ""} ({config.series.source.sanityBand.license}), not used for settlement.
                   </span>
                 ) : null}
               </div>
@@ -112,7 +118,7 @@ function SeriesCard() {
                   <span className="num">
                     {unit(snapshot.terms.lower)} to {unit(snapshot.terms.upper)} per GPU-hour
                   </span>
-                  <BandRuler
+                  <BandGauge
                     lower={Number(snapshot.terms.lower) / 10 ** snapshot.terms.priceDecimals}
                     upper={Number(snapshot.terms.upper) / 10 ** snapshot.terms.priceDecimals}
                     markers={markers}
@@ -133,20 +139,27 @@ function SeriesCard() {
               {mark.data?.status === "ok" ? (
                 <div className="stack" style={{ gap: 4 }}>
                   <div className="row" style={{ alignItems: "baseline", gap: 12 }}>
-                    <span className="mark-big">{markLabel(mark.data.answer, mark.data.decimals, mark.data.isFinal ? 6 : 4)}</span>
+                    <span className="mark-big">{markLabel(mark.data.answer, mark.data.decimals, 6)}</span>
                     <span className="sub">per whole long claim</span>
                   </div>
+                  {shortMark.data?.status === "ok" ? (
+                    <div className="row" style={{ alignItems: "baseline", gap: 12 }}>
+                      <span className="num" style={{ fontSize: 17 }}>{markLabel(shortMark.data.answer, shortMark.data.decimals, 6)}</span>
+                      <span className="sub">per whole short claim, 1 minus the long value (PiryShortFeed)</span>
+                    </div>
+                  ) : null}
                   <span className="sub num">
                     {mark.data.isFinal
                       ? "Final value: the market has settled."
                       : mark.data.indexPrice !== null && snapshot
-                        ? `Index observed ${unit(mark.data.indexPrice)}, round ${mark.data.roundId.toString()}, ${duration(Number((now ?? mark.data.updatedAt) - mark.data.updatedAt))} ago`
+                        ? `Index observed ${unit(mark.data.indexPrice, 4)}, round ${mark.data.roundId.toString()}, ${duration(Number((now ?? mark.data.updatedAt) - mark.data.updatedAt))} ago`
                         : null}
                   </span>
                   {config.markStaleSeconds > 0 && !mark.data.isFinal && now !== null && now - mark.data.updatedAt > BigInt(config.markStaleSeconds) ? (
                     <span className="chip warn">Stale: no update for over {duration(config.markStaleSeconds)}</span>
                   ) : null}
                   <Src contract="PiryMarkFeed" address={config.contracts.markFeed} block={mark.data.block} />
+                  {shortMark.data?.status === "ok" ? <Src contract="PiryShortFeed" address={config.contracts.shortFeed} block={shortMark.data.block} /> : null}
                 </div>
               ) : mark.data?.status === "empty" ? (
                 <div className="stack" style={{ gap: 4 }}>
@@ -172,6 +185,12 @@ function SeriesCard() {
                     to {utc(snapshot.terms.periodEnd)}
                   </span>
                   <span className="sub">{periodLine(snapshot, now)}</span>
+                  {!snapshot.state.settled && now !== null && now < snapshot.terms.periodEnd ? (
+                    <div className="countdown" role="timer" aria-label="Time to the settlement snapshot">
+                      <span className="label">Settlement snapshot in</span>
+                      <span className="num">{duration(Number(snapshot.terms.periodEnd - now))}</span>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <PendingInline>Awaiting deployment</PendingInline>
@@ -240,91 +259,51 @@ function SeriesCard() {
   );
 }
 
-export function Hero() {
+export function SeriesSection() {
   return (
-    <header className="hero" id="top">
-      <div className="content">
-        <div className="hero-eyebrow rise">
-          <span className="chip plain">{chain.name}</span>
-          <span className="sub">Prototype. Not audited. Test funds only.</span>
-        </div>
-        <h1 className="hero-title rise">
-          <span>Hourly GPU prices float.</span>
-          <span>Your customer contracts don&rsquo;t.</span>
-          <span>
-            <em>Piry caps the gap.</em>
-          </span>
-        </h1>
-        <p className="hero-lede rise d1">
-          If you rent GPUs by the hour and sell at a fixed price, a jump in H100 rates comes straight out of your margin. Piry issues fully collateralized claims on a GPU rental price index.
-          Buy the long side on Kuru&rsquo;s order book and it pays out as the index rises, up to a cap you can see before you trade.
-        </p>
-        <div className="hero-actions rise d1">
-          <a className="btn" href="#exposure">Size your hedge</a>
-          <a className="btn secondary" href="#evidence">See settlement evidence</a>
-        </div>
-        <p className="hero-disclaimer rise d1">
-          Cash-settled claims on a price index. Not insurance, no guarantee of reimbursement, and no compute is reserved or delivered.
-        </p>
-
-        <div className="hero-grid">
-          <SeriesCard />
-          <div className="rise d3">
-            <p className="label" style={{ marginBottom: 12 }}>Why a hedge, and why now</p>
-            <ul className="whynow">
-              <li>
-                <span className="fig">CME</span>
-                <p>
-                  <strong>Delayed.</strong> CME&rsquo;s GPU rental futures were delayed when the CFTC extended its review, citing &ldquo;novel or complex issues.&rdquo;
-                </p>
-              </li>
-              <li>
-                <span className="fig">ICE</span>
-                <p>
-                  <strong>Specs published.</strong> ICE and Ornn have published contract specifications for GPU rental pricing.
-                </p>
-              </li>
-              <li>
-                <span className="fig">~85%</span>
-                <p>
-                  <strong>Volatile.</strong> H100 realized volatility has reached about 85%.
-                </p>
-              </li>
-              <li>
-                <span className="fig">~$570k</span>
-                <p>
-                  <strong>Demand exists.</strong> Polymarket&rsquo;s H100 rental-price markets have traded up to ~$570k on a single market, and Kalshi lists GPU rental contracts. Those are binary bets that pay all or nothing.
-                  Piry&rsquo;s payout scales with the price move inside the band.
-                </p>
-              </li>
-            </ul>
-            <p className="label" style={{ margin: "32px 0 0" }}>How a claim works</p>
-            <ol className="how">
-              <li>
-                <span className="n">01</span>
-                <div>
-                  <h4>Mint</h4>
-                  <p>One unit of dollar collateral mints one long and one short claim, both ordinary ERC-20 tokens. Every claim is fully backed.</p>
-                </div>
-              </li>
-              <li>
-                <span className="n">02</span>
-                <div>
-                  <h4>Settle</h4>
-                  <p>When the period ends, a Chainlink CRE report publishes the index price. Long redeems the share of the band the price has climbed, short redeems the rest.</p>
-                </div>
-              </li>
-              <li>
-                <span className="n">03</span>
-                <div>
-                  <h4>Trade and exit</h4>
-                  <p>Hedgers buy long on Kuru&rsquo;s order book; GPU owners and lenders take the short. A matched pair can always be merged back into collateral.</p>
-                </div>
-              </li>
-            </ol>
-          </div>
+    <Section
+      id="series"
+      index="1/6"
+      kicker="The series"
+      title={
+        <>
+          The series you are <em>trading</em>
+        </>
+      }
+      lede="One deployed market: its band, its period, its collateral and the mark every exchange price comes from. Everything here is read from the chain."
+    >
+      <div className="series-grid">
+        <SeriesCard />
+        <div className="stack">
+          <p className="label">How a claim works</p>
+          <ol className="how">
+            <li>
+              <span className="n">01</span>
+              <div>
+                <h3>Mint</h3>
+                <p>One unit of dollar collateral mints one long and one short claim, both ordinary ERC-20 tokens. Every claim is fully backed.</p>
+              </div>
+            </li>
+            <li>
+              <span className="n">02</span>
+              <div>
+                <h3>Settle</h3>
+                <p>When the period ends, a Chainlink CRE report publishes the index price. Long redeems the share of the band the price has climbed, short redeems the rest.</p>
+              </div>
+            </li>
+            <li>
+              <span className="n">03</span>
+              <div>
+                <h3>Trade and exit</h3>
+                <p>Hedgers buy long on Kuru&rsquo;s order book; GPU owners and lenders take the short. A matched pair can always be merged back into collateral.</p>
+              </div>
+            </li>
+          </ol>
         </div>
       </div>
-    </header>
+      <div className="chart-card chart-card--spaced">
+        <MarkHistoryChart subject={primarySubject} surface="sheet" />
+      </div>
+    </Section>
   );
 }

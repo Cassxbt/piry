@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { chain, config } from "../config";
+import { chain } from "../config";
+import type { SeriesSubject } from "../config/types";
 import { loadLifecycle, proveTransaction, type LifecycleStep, type StepProof } from "../lib/lifecycle";
 import type { LedgerContext } from "../lib/ledger";
 import type { MarketSnapshot } from "../lib/reads";
@@ -9,21 +10,21 @@ export interface LifecycleData {
   steps: { step: LifecycleStep; proof: StepProof | null }[];
 }
 
-export function useLifecycle(snapshot: MarketSnapshot | undefined) {
+export function useLifecycle(snapshot: MarketSnapshot | undefined, subject: SeriesSubject) {
   const pc = useClient();
   return useQuery({
-    queryKey: ["lifecycle", config.evidenceBase, snapshot?.address],
+    queryKey: ["lifecycle", subject.evidenceBase, snapshot?.address],
     queryFn: async (): Promise<LifecycleData | null> => {
-      const steps = await loadLifecycle(config.evidenceBase);
+      const steps = snapshot ? await loadLifecycle(subject.evidenceBase, snapshot.address) : null;
       if (!steps || !snapshot) return null;
       const ctx: LedgerContext = {
-        forwarder: config.contracts.forwarder as `0x${string}`,
+        forwarder: subject.contracts.forwarder as `0x${string}`,
         market: snapshot.address,
-        settlementReceiver: config.contracts.receiver,
-        feed: config.contracts.markFeed,
+        settlementReceiver: subject.contracts.receiver,
+        feed: subject.contracts.markFeed,
         chainId: BigInt(chain.id),
       };
-      const proofs = await Promise.all(steps.map((s) => (s.tx && config.contracts.forwarder ? proveTransaction(pc, ctx, s.tx).catch(() => null) : null)));
+      const proofs = await Promise.all(steps.map((s) => (s.tx && subject.contracts.forwarder ? proveTransaction(pc, ctx, s.tx).catch(() => null) : null)));
       return { steps: steps.map((step, i) => ({ step, proof: proofs[i] ?? null })) };
     },
     enabled: snapshot !== undefined,

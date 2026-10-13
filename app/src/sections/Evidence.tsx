@@ -2,11 +2,11 @@ import { useState } from "react";
 import { computeMarketAbi } from "../abi";
 import { ActionButton, TxStatus } from "../components/Action";
 import { Pending } from "../components/Pending";
-import { Section } from "../components/Section";
 import { Src } from "../components/Src";
 import { config } from "../config";
+import type { SeriesSubject } from "../config/types";
 import { useAction } from "../hooks/action";
-import { useChainNow, useClient, useEvidenceFile, useMarket, useSettlement } from "../hooks/chain";
+import { useChainNow, useClient, useEvidenceFile, useSeriesMarket, useSettlement } from "../hooks/chain";
 import { useWallet } from "../hooks/wallet";
 import { blockLabel, duration, shortAddress, shortHash, usd, utc } from "../lib/format";
 import { DELIVERY } from "../lib/labels";
@@ -32,7 +32,7 @@ function Check({ state, children, detail }: { state: "pass" | "fail" | "skip"; c
   );
 }
 
-function EvidencePanel({ snapshot, text, check }: { snapshot: MarketSnapshot; text: string; check: EvidenceCheck }) {
+function EvidencePanel({ subject, snapshot, text, check }: { subject: SeriesSubject; snapshot: MarketSnapshot; text: string; check: EvidenceCheck }) {
   const [raw, setRaw] = useState(false);
   const d = check.dataset;
   const slots = d ? (d.periodEnd - d.periodStart) / d.slotSeconds : 0;
@@ -90,7 +90,7 @@ function EvidencePanel({ snapshot, text, check }: { snapshot: MarketSnapshot; te
 
         <div className="row">
           <button type="button" className="btn secondary small" onClick={() => setRaw((v) => !v)} aria-expanded={raw}>{raw ? "Hide raw JSON" : "Show raw JSON"}</button>
-          <a className="btn secondary small" href={`${config.evidenceBase}/evidence.json`} download="evidence.json">Download evidence.json</a>
+          <a className="btn secondary small" href={`${subject.evidenceBase}/evidence.json`} download="evidence.json">Download evidence.json</a>
         </div>
         {raw ? <pre className="json-view" tabIndex={0}>{text}</pre> : null}
       </div>
@@ -98,10 +98,10 @@ function EvidencePanel({ snapshot, text, check }: { snapshot: MarketSnapshot; te
   );
 }
 
-function SettlementFacts({ snapshot, record, lookupReason }: { snapshot: MarketSnapshot; record: SettlementRecord | null; lookupReason: string | null }) {
+function SettlementFacts({ subject, snapshot, record, lookupReason }: { subject: SeriesSubject; snapshot: MarketSnapshot; record: SettlementRecord | null; lookupReason: string | null }) {
   const pd = snapshot.terms.priceDecimals;
   const fallback = snapshot.state.settledByFallback;
-  const delivery = config.settlementMode ? DELIVERY[config.settlementMode] : null;
+  const delivery = subject.settlementMode ? DELIVERY[subject.settlementMode] : null;
   return (
     <div className="panel">
       <div className="panel-head">
@@ -133,7 +133,7 @@ function SettlementFacts({ snapshot, record, lookupReason }: { snapshot: MarketS
           </div>
           <div>
             <dt>Index source</dt>
-            <dd><SourceNote /></dd>
+            <dd><SourceNote subject={subject} /></dd>
           </div>
           <div>
             <dt>Evidence hash</dt>
@@ -167,11 +167,11 @@ function SettlementFacts({ snapshot, record, lookupReason }: { snapshot: MarketS
   );
 }
 
-function FallbackAction({ snapshot }: { snapshot: MarketSnapshot }) {
+function FallbackAction({ subject, snapshot }: { subject: SeriesSubject; snapshot: MarketSnapshot }) {
   const wallet = useWallet();
   const pc = useClient();
   const action = useAction();
-  const market = useMarket();
+  const market = useSeriesMarket(subject);
   const now = useChainNow(snapshot, market.dataUpdatedAt);
   const opensAt = snapshot.terms.periodEnd + snapshot.terms.fallbackDelay;
   const open = now !== null && now >= opensAt;
@@ -201,11 +201,11 @@ function FallbackAction({ snapshot }: { snapshot: MarketSnapshot }) {
   );
 }
 
-export function Evidence() {
-  const market = useMarket();
+function SubjectEvidence({ subject }: { subject: SeriesSubject }) {
+  const market = useSeriesMarket(subject);
   const snapshot = market.data;
-  const settlement = useSettlement(snapshot);
-  const evidence = useEvidenceFile(snapshot);
+  const settlement = useSettlement(snapshot, subject);
+  const evidence = useEvidenceFile(snapshot, subject);
   const now = useChainNow(snapshot, market.dataUpdatedAt);
   const record = settlement.data?.status === "found" ? settlement.data.record : null;
   const phase = snapshot ? phaseOf(snapshot) : null;
@@ -213,21 +213,23 @@ export function Evidence() {
   const settlementReady = !settled || !settlement.isLoading;
 
   return (
-    <Section
-      id="evidence"
-      index="05"
-      kicker="Settlement evidence"
-      title={
-        <>
-          What settled it, and what the system <em>refused</em>
-        </>
-      }
-      lede="A settlement is only worth trusting if the failures are on the record too. The ledger puts the accepted report beside every report the contracts turned away, each rebuilt from on-chain events."
-    >
+    <div className="subject stack-lg">
+      <header className="subject-head">
+        <div>
+          <h3 className="subject-title">{subject.evidenceTitle}</h3>
+          {subject.series.dataMode === "DEMO" ? <p className="sub">Synthetic prices on a five-minute clock, built to show the whole lifecycle on the record.</p> : <p className="sub">Real public price data, delivered by the CRE CLI in simulation.</p>}
+        </div>
+        <div className="row">
+          {snapshot ? <span className={`chip ${settled ? "ok" : "warn"}`}>{settled ? "Settled" : "Not settled"}</span> : null}
+          {subject.contracts.market ? <Src contract="ComputeMarket" address={subject.contracts.market} block={snapshot?.block.number ?? null} /> : null}
+        </div>
+      </header>
+
       {!snapshot ? (
-        <Pending title="No market deployed on this network yet">Settlement evidence appears here once a series has been deployed and has settled.</Pending>
+        market.isError ? <Pending title="Could not read this series">{market.error instanceof Error ? market.error.message : "RPC error"}</Pending>
+          : <Pending title="No market deployed for this series yet">Settlement evidence appears here once the series has been deployed and has settled.</Pending>
       ) : !settled ? (
-        <div className="stack-lg">
+        <>
           <div className="panel">
             <div className="verdict">
               <h3>Not settled yet</h3>
@@ -237,40 +239,49 @@ export function Evidence() {
                   : "The period has ended. The settlement authority has not delivered a valid report."}
               </p>
             </div>
-            <div className="panel-pad">
+            <div className="panel-pad stack">
               <p className="sub">Only the settlement authority ({shortAddress(snapshot.terms.settlementAuthority)}) can settle with a report, and it can do so once. Reports must match this chain, market, index, spec and period, and be fresh.</p>
+              <dl className="kv"><div><dt>Index source</dt><dd><SourceNote subject={subject} /></dd></div></dl>
             </div>
           </div>
-          <Ledger snapshot={snapshot} settlement={null} settlementReady />
+          <Ledger subject={subject} snapshot={snapshot} settlement={null} settlementReady />
           <div className="two-col">
-            <FallbackAction snapshot={snapshot} />
-            <Rounds snapshot={snapshot} />
+            <FallbackAction subject={subject} snapshot={snapshot} />
+            <Rounds subject={subject} snapshot={snapshot} />
           </div>
-        </div>
+        </>
       ) : (
-        <div className="stack-lg">
-          <SettlementFacts snapshot={snapshot} record={record} lookupReason={settlement.data?.status === "not-found" ? settlement.data.reason : null} />
-          <Ledger snapshot={snapshot} settlement={record} settlementReady={settlementReady} />
-          <div className="stack-lg">
-            {snapshot.state.settledByFallback ? (
-              <div className="panel">
-                <div className="panel-head"><span className="label">Evidence</span></div>
-                <div className="panel-pad"><p className="sub">A fallback settlement carries no dataset. The price is defined by the contract as the midpoint of the band, which anyone can verify from the floor and cap.</p></div>
-              </div>
-            ) : evidence.data ? (
-              <EvidencePanel snapshot={snapshot} text={evidence.data.text} check={evidence.data.check} />
-            ) : evidence.isLoading ? (
-              <div className="panel"><div className="panel-pad"><p className="sub">Fetching the evidence file</p></div></div>
-            ) : (
-              <Pending title="Evidence file not published">
-                Expected at <span className="mono">{config.evidenceBase}/evidence.json</span>. The on-chain hash is {shortHash(snapshot.state.evidenceHash)}; once the canonical JSON is served, it is hashed here and compared.
-              </Pending>
-            )}
-            <Rounds snapshot={snapshot} />
-            <Lifecycle snapshot={snapshot} />
-          </div>
-        </div>
+        <>
+          <SettlementFacts subject={subject} snapshot={snapshot} record={record} lookupReason={settlement.data?.status === "not-found" ? settlement.data.reason : null} />
+          <Ledger subject={subject} snapshot={snapshot} settlement={record} settlementReady={settlementReady} />
+          {snapshot.state.settledByFallback ? (
+            <div className="panel">
+              <div className="panel-head"><span className="label">Evidence</span></div>
+              <div className="panel-pad"><p className="sub">A fallback settlement carries no dataset. The price is defined by the contract as the midpoint of the band, which anyone can verify from the floor and cap.</p></div>
+            </div>
+          ) : evidence.data ? (
+            <EvidencePanel subject={subject} snapshot={snapshot} text={evidence.data.text} check={evidence.data.check} />
+          ) : evidence.isLoading ? (
+            <div className="panel"><div className="panel-pad"><p className="sub">Fetching the evidence file</p></div></div>
+          ) : (
+            <Pending title="Evidence file not published">
+              Expected at <span className="mono">{subject.evidenceBase}/evidence.json</span>. The on-chain hash is {shortHash(snapshot.state.evidenceHash)}; once the canonical JSON is served, it is hashed here and compared.
+            </Pending>
+          )}
+          <Rounds subject={subject} snapshot={snapshot} />
+          <Lifecycle subject={subject} snapshot={snapshot} />
+        </>
       )}
-    </Section>
+    </div>
+  );
+}
+
+export function EvidenceBody() {
+  return (
+    <div className="stack-lg subjects">
+      {config.subjects.map((subject) => (
+        <SubjectEvidence key={subject.id ?? "live"} subject={subject} />
+      ))}
+    </div>
   );
 }

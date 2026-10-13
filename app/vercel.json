@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/rpc/crouton", "destination": "https://monad-testnet-rpc.crouton.digital/" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

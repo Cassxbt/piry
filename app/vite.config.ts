@@ -1,10 +1,17 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
+// The log-scanning RPC sends no CORS headers, so the browser reaches it through this same-origin path. Deployments
+// do the same with the rewrite in vercel.json or public/_redirects.
+const logsProxy = {
+  "/rpc/crouton": { target: "https://monad-testnet-rpc.crouton.digital", changeOrigin: true, rewrite: () => "/" },
+};
+
 export default defineConfig({
   plugins: [react()],
   // The app reads ../deployments/<network>.json directly, which sits outside this package.
-  server: { port: 5173, host: "127.0.0.1", fs: { allow: [".."] } },
+  server: { port: 5173, host: "127.0.0.1", fs: { allow: [".."] }, proxy: logsProxy },
+  preview: { proxy: logsProxy },
   build: {
     target: "es2022",
     sourcemap: false,

@@ -9,6 +9,7 @@ import { Src } from "../components/Src";
 import { TxLink } from "./evidence/shared";
 import { useAction } from "../hooks/action";
 import { useClient, useHolder, useMarket } from "../hooks/chain";
+import { primarySubject } from "../config";
 import { useLifecycle } from "../hooks/lifecycle";
 import { useViewer } from "../hooks/viewer";
 import { useWallet } from "../hooks/wallet";
@@ -179,7 +180,7 @@ function RedeemForm({ snapshot }: { snapshot: MarketSnapshot }) {
 }
 
 function PriorRedemptions({ snapshot }: { snapshot: MarketSnapshot }) {
-  const lifecycle = useLifecycle(snapshot);
+  const lifecycle = useLifecycle(snapshot, primarySubject);
   const rows = (lifecycle.data?.steps ?? []).flatMap(({ proof }) => (proof ? proof.redemptions.map((r) => ({ proof, r })) : []));
   if (rows.length === 0) return null;
   const cd = snapshot.collateral.decimals;
@@ -219,7 +220,7 @@ export function Redeem() {
   return (
     <Section
       id="redeem"
-      index="06"
+      index="6/6"
       kicker="Redeem"
       title={
         <>

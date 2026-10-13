@@ -3,6 +3,7 @@ import { computeMarketAbi, settlementReceiverAbi, simulationReceiverAbi } from "
 import type { NetworkConfig } from "../config/types";
 import { fetchText } from "./evidence";
 import type { MarketSnapshot } from "./reads";
+import { withLogFallback, type LogSource } from "./logsClient";
 
 export interface SettlementRecord {
   kind: "report" | "fallback";
@@ -68,7 +69,9 @@ async function firstBlockAtOrAfter(pc: PublicClient, target: bigint, lo: bigint,
   return low;
 }
 
-async function scanForLog(pc: PublicClient, config: NetworkConfig, snapshot: MarketSnapshot): Promise<Log | null> {
+type SettlementConfig = Pick<NetworkConfig, "evidenceBase" | "deployBlock" | "chain">;
+
+async function scanForLog(pc: PublicClient, logs: LogSource, config: SettlementConfig, snapshot: MarketSnapshot): Promise<Log | null> {
   const latest = snapshot.block.number;
   const floor = BigInt(config.deployBlock ?? 0);
   const published = snapshot.state.reportPublishedAt;
@@ -76,21 +79,21 @@ async function scanForLog(pc: PublicClient, config: NetworkConfig, snapshot: Mar
   // A report settles within maxReportAge of its publication time; a fallback settles in the block it stamps.
   const windowSeconds = snapshot.state.settledByFallback ? 2n : snapshot.terms.maxReportAge + 30n;
   const end = await firstBlockAtOrAfter(pc, published + windowSeconds, start, latest);
-  const step = BigInt(config.chain.getLogsMaxRange);
+  const step = BigInt(logs.maxRange);
   for (let from = start; from <= end; from += step) {
     const to = from + step - 1n < end ? from + step - 1n : end;
-    const logs = await pc.getLogs({
+    const found = await logs.client.getLogs({
       address: snapshot.address,
       events: [settledEvent, fallbackEvent],
       fromBlock: from,
       toBlock: to,
     });
-    if (logs[0]) return logs[0];
+    if (found[0]) return found[0];
   }
   return null;
 }
 
-export async function findSettlement(pc: PublicClient, config: NetworkConfig, snapshot: MarketSnapshot): Promise<SettlementLookup> {
+export async function findSettlement(pc: PublicClient, config: SettlementConfig, snapshot: MarketSnapshot, sources: LogSource[]): Promise<SettlementLookup> {
   if (!snapshot.state.settled) return { status: "not-found", reason: "The market has not settled." };
   const hintText = await fetchText(`${config.evidenceBase}/settlement.json`);
   if (hintText) {
@@ -105,7 +108,7 @@ export async function findSettlement(pc: PublicClient, config: NetworkConfig, sn
     }
   }
   try {
-    const log = await scanForLog(pc, config, snapshot);
+    const { result: log } = await withLogFallback(sources, (source) => scanForLog(pc, source, config, snapshot));
     if (log?.transactionHash) {
       const record = await describe(pc, snapshot.address, log.transactionHash);
       if (record) return { status: "found", record };

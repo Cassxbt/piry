@@ -1,7 +1,7 @@
 import { parseEventLogs, type Address, type Hex, type Log, type PublicClient } from "viem";
 import { computeMarketAbi, markFeedAbi, settlementReceiverAbi, simulationReceiverAbi } from "../abi";
 import { fetchText } from "./evidence";
-import { reportProcessedEvent, type LedgerContext } from "./ledger";
+import { boundTo, reportProcessedEvent, type LedgerContext } from "./ledger";
 
 export interface LifecycleStep {
   step: string;
@@ -9,12 +9,12 @@ export interface LifecycleStep {
 }
 
 // The run log is a list of claims. Only its transaction hashes are used as pointers; outcomes come from receipts.
-export async function loadLifecycle(base: string): Promise<LifecycleStep[] | null> {
+export async function loadLifecycle(base: string, market: string): Promise<LifecycleStep[] | null> {
   const text = await fetchText(`${base}/lifecycle.json`);
   if (text === null) return null;
   try {
-    const parsed = JSON.parse(text) as { steps?: { step?: string; tx?: string }[] };
-    if (!Array.isArray(parsed.steps)) return null;
+    const parsed = JSON.parse(text) as { contracts?: { market?: string }; steps?: { step?: string; tx?: string }[] };
+    if (!Array.isArray(parsed.steps) || !boundTo(parsed.contracts?.market ?? null, market)) return null;
     return parsed.steps.flatMap((s) =>
       s.step ? [{ step: s.step, tx: s.tx && /^0x[0-9a-fA-F]{64}$/.test(s.tx) ? (s.tx as Hex) : null }] : [],
     );

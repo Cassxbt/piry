@@ -4,6 +4,7 @@ export {
   claimTokenAbi,
   computeMarketAbi,
   markFeedAbi,
+  shortFeedAbi,
   settlementReceiverAbi,
   simulationReceiverAbi,
 } from "./generated";

@@ -1,7 +1,7 @@
 :root {
   color-scheme: light dark;
 
-  --font-display: "Newsreader Variable", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-display: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
   --font-ui: "Instrument Sans Variable", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 
@@ -24,9 +24,27 @@
   --hatch: light-dark(rgb(21 20 15 / 0.075), rgb(236 233 223 / 0.07));
   --on-ink: light-dark(#f2efe7, #0c0e0d);
 
+  /* Product frames stay dark in both themes, like an instrument set into the page. */
+  --frame-bg: light-dark(#0e1110, #141816);
+  --frame-ink: #ece9df;
+  --frame-dim: #9a968a;
+  --frame-rule: light-dark(#262b28, #2b312d);
+  --frame-long: #5ccfb4;
+  --frame-short: #f0916a;
+  --frame-warn: #e3bf68;
+
+  /* Chart marks. Each passes the dataviz lightness band, chroma floor and 3:1 contrast against its surface. */
+  --chart-accent: light-dark(#08826b, #34a88d);
+  --chart-short: light-dark(#a3401c, #cc6c47);
+  --chart-context: var(--ink-3);
+  --chart-surface: var(--paper);
+
   --radius: 3px;
+  --header-h: 64px;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --gutter: 16px;
-  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 :root[data-theme="light"] { color-scheme: light; }
@@ -36,5 +54,5 @@
   :root { --gutter: 32px; }
 }
 @media (min-width: 1100px) {
-  :root { --gutter: 56px; }
+  :root { --gutter: 48px; }
 }

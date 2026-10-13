@@ -29,7 +29,7 @@ export function Src({ contract, address, block }: Props) {
     </>
   );
   return href ? (
-    <a className="src" href={href} target="_blank" rel="noreferrer" aria-label={`Source: ${contract}${address ? ` at ${address}` : ""}`}>
+    <a className="src" href={href} target="_blank" rel="noreferrer">
       {body}
     </a>
   ) : (

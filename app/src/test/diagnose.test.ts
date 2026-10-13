@@ -87,3 +87,16 @@ describe("diagnoseMark", () => {
     expect(diagnoseMark(mark, { ...mctx, marketSettled: true })?.errorName).toBe("MarketSettled");
   });
 });
+
+import { boundTo } from "../lib/ledger";
+
+describe("boundTo", () => {
+  it("accepts a pinned file only for the market it names", () => {
+    expect(boundTo("0xAbC0000000000000000000000000000000000001", "0xabc0000000000000000000000000000000000001")).toBe(true);
+    expect(boundTo("0xabc0000000000000000000000000000000000001", "0xdef0000000000000000000000000000000000002")).toBe(false);
+  });
+
+  it("accepts a file that names no market", () => {
+    expect(boundTo(null, "0xdef0000000000000000000000000000000000002")).toBe(true);
+  });
+});

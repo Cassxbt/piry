@@ -2,8 +2,8 @@ import { useState } from "react";
 import { OrderBook } from "../components/OrderBook";
 import { Pending } from "../components/Pending";
 import { Section } from "../components/Section";
-import { config } from "../config";
-import { useMarket } from "../hooks/chain";
+import { config, primarySubject } from "../config";
+import { useMark, useMarket, useSeriesShortMark } from "../hooks/chain";
 import { kuruMarketFor, useKuruBook, type KuruSide } from "../hooks/kuru";
 import { marketIssues } from "../lib/kuru";
 import { KuruAccount } from "./trade/KuruAccount";
@@ -48,7 +48,7 @@ export function Trade() {
   const market = useMarket();
   const snapshot = market.data;
   const [route, setRoute] = useState<Route>("buy");
-  const [side, setSide] = useState<KuruSide>("long");
+  const [side, setSide] = useState<KuruSide>(config.kuru.longMarket === null && config.kuru.shortMarket !== null ? "short" : "long");
 
   const longBook = useKuruBook("long");
   const shortBook = useKuruBook("short");
@@ -57,13 +57,17 @@ export function Trade() {
   const bothListed = config.kuru.longMarket !== null && config.kuru.shortMarket !== null;
   const claimAddress = snapshot ? (side === "long" ? snapshot.claims.long : snapshot.claims.short) : null;
   const issues = book.data && claimAddress ? marketIssues(book.data, { base: claimAddress, quote: config.kuru.quoteToken }) : [];
-  const preview = import.meta.env.VITE_KURU_LONG_MARKET !== undefined;
+  const preview = import.meta.env.VITE_KURU_LONG_MARKET !== undefined || import.meta.env.VITE_KURU_SHORT_MARKET !== undefined;
   const symbol = snapshot ? (side === "long" ? snapshot.claims.longSymbol : snapshot.claims.shortSymbol) : side === "long" ? "PIRY-L" : "PIRY-S";
+  const longMark = useMark().data;
+  const shortMark = useSeriesShortMark(primarySubject).data;
+  const feedMark = side === "long" ? longMark : shortMark;
+  const bookMark = feedMark?.status === "ok" ? { price: Number(feedMark.answer) / 10 ** feedMark.decimals, label: `Feed mark ${(Number(feedMark.answer) / 10 ** feedMark.decimals).toFixed(4)}` } : null;
 
   return (
     <Section
       id="trade"
-      index="03"
+      index="3/6"
       kicker="Trade"
       title={
         <>
@@ -115,7 +119,7 @@ export function Trade() {
                   </Pending>
                 </div>
               ) : (
-                <OrderBook book={book.data} symbol={symbol} />
+                <OrderBook book={book.data} symbol={symbol} mark={bookMark} />
               )}
             </div>
 

@@ -1,5 +1,5 @@
 import { BaseError, ContractFunctionRevertedError, type Address, type Hex, type PublicClient } from "viem";
-import { claimTokenAbi, computeMarketAbi, erc20Abi, markFeedAbi } from "../abi";
+import { claimTokenAbi, computeMarketAbi, erc20Abi, markFeedAbi, shortFeedAbi } from "../abi";
 
 export interface BlockRef {
   number: bigint;
@@ -171,4 +171,27 @@ export function phaseOf(s: MarketSnapshot): Phase {
   if (now < s.terms.periodStart) return "pre-period";
   if (now < s.terms.periodEnd) return "in-period";
   return now >= s.terms.periodEnd + s.terms.fallbackDelay ? "fallback-window" : "awaiting-settlement";
+}
+
+export type ShortMark =
+  | { status: "ok"; block: bigint; roundId: bigint; answer: bigint; decimals: number; updatedAt: bigint }
+  | { status: "empty" }
+  | { status: "error"; message: string };
+
+// PiryShortFeed forwards the long feed's round metadata, so it reverts with the long feed's NoData until a first update.
+export async function readShortMark(pc: PublicClient, feed: Address): Promise<ShortMark> {
+  try {
+    const blockNumber = await pc.getBlockNumber({ cacheTime: 0 });
+    const [decimals, round] = await Promise.all([
+      pc.readContract({ address: feed, abi: shortFeedAbi, functionName: "decimals", blockNumber }),
+      pc.readContract({ address: feed, abi: shortFeedAbi, functionName: "latestRoundData", blockNumber }).then(
+        (r) => r,
+        (error: unknown) => (isNoData(error) ? null : Promise.reject(error)),
+      ),
+    ]);
+    if (round === null) return { status: "empty" };
+    return { status: "ok", block: blockNumber, roundId: round[0], answer: round[1], decimals, updatedAt: round[3] };
+  } catch (error) {
+    return { status: "error", message: error instanceof Error ? error.message : String(error) };
+  }
 }

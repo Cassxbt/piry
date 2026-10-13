@@ -9,28 +9,79 @@
     "getLogsMaxRange": 100,
     "scanMaxRequests": 60,
     "requestsPerSecond": 10,
-    "multicall3": "0xcA11bde05977b3631167028862bE2a173976CA11"
+    "multicall3": "0xcA11bde05977b3631167028862bE2a173976CA11",
+    "blockTimeMs": 400,
+    "logsRpcUrl": "/rpc/crouton",
+    "logsMaxRange": 1000,
+    "logsRequestsPerSecond": 20,
+    "logsRpcLabel": "Crouton Digital",
+    "logsRpcUpstream": "https://monad-testnet-rpc.crouton.digital"
   },
   "settlement": {
-    "source": "Chainlink CRE workflow"
+    "source": "Chainlink CRE workflow",
+    "markCadence": "every 15 minutes"
   },
   "series": {
-    "name": "H100 fast demo",
-    "hardware": "NVIDIA H100 80GB",
+    "name": "H100 live",
+    "hardware": "NVIDIA H100 SXM 80GB, 1 GPU, on-demand",
     "units": "USD per GPU-hour",
-    "dataMode": "DEMO",
+    "dataMode": "LIVE",
     "source": {
-      "name": "Akash on-chain H100 market price",
-      "summary": "Public chain data from the Akash marketplace, read by a Chainlink CRE workflow and reduced to USD per GPU-hour.",
+      "name": "Composite H100 SXM on-demand price (median of public sources)",
+      "summary": "The median of four public H100 SXM, 1-GPU, on-demand prices fetched by Chainlink CRE: the Akash on-chain marketplace, RunPod, Verda and Shadeform's median across its SXM clouds. A reading is used only if at least 3 of the 4 sources return a valid price, and any failed source is recorded in the evidence. With an even number of valid sources the median is the mean of the two middle values.",
       "sanityBand": {
         "name": "GetDeploying weekly H100 median",
         "license": "CC BY 4.0",
-        "note": "A published cross-provider reference (41 providers), shown as a sanity check on the level. It is not used for settlement, and the two sources can differ by a quarter or more.",
+        "note": "Median of 41 providers. A published reference for the level, not used for settlement.",
         "url": "https://getdeploying.com/dataset/gpu-prices/weekly.csv",
         "value": "3.41",
-        "asOf": "2026-10-12"
+        "asOf": "week of 5 Oct 2026"
       },
-      "demo": "Synthetic prices from a loopback demo source, delivered by the CRE CLI in simulation. No market data is attached to this series."
+      "demo": null,
+      "minValid": 3,
+      "components": [
+        {
+          "name": "Akash on-chain marketplace",
+          "detail": "Derived from on-chain marketplace bids",
+          "value": "2.73",
+          "status": "valid",
+          "url": null,
+          "rule": "Akash Console's public GPU price endpoint, built from on-chain marketplace bids. NVIDIA H100, 80Gi, SXM5: the weighted-average price across providers, with at least 2 providers required. It is a trailing average, so it moves more slowly than a spot quote.",
+          "why": "A decentralised GPU market whose bids are on a public chain, so the number can be traced to on-chain activity."
+        },
+        {
+          "name": "RunPod",
+          "detail": "Public price list",
+          "value": "2.69",
+          "status": "valid",
+          "url": null,
+          "rule": "Public GraphQL price list. NVIDIA H100 80GB HBM3, 1 GPU: the lowest on-demand (non-interruptible) price.",
+          "why": "A large on-demand GPU cloud that publishes its price without a login."
+        },
+        {
+          "name": "Verda",
+          "detail": "Public price list",
+          "value": "4.087",
+          "status": "valid",
+          "url": null,
+          "rule": "Public instance-type list. 1x H100 SXM5 80GB: the cheapest matching instance, in USD per hour.",
+          "why": "An independent GPU cloud with public, machine-readable instance pricing."
+        },
+        {
+          "name": "Shadeform",
+          "detail": "Median of 4 SXM clouds, Verda excluded",
+          "value": "4.17",
+          "status": "valid",
+          "url": null,
+          "rule": "Public marketplace API across clouds. H100 SXM5, 1 GPU: the cheapest listing per cloud, then the median across at least 4 clouds, with Verda excluded so it is not counted twice.",
+          "why": "An aggregator over many clouds, so one provider's pricing quirks are diluted."
+        }
+      ],
+      "componentsAsOf": "13 Oct 2026, 09:42 UTC",
+      "bounds": {
+        "min": "0.50",
+        "max": "20.00"
+      }
     }
   },
   "kuru": {
@@ -38,9 +89,38 @@
     "quoteToken": "0xA402B424f392EAA05DBc8779e4502A1F6A96fEF1",
     "quoteSymbol": "USDC",
     "quoteDecimals": 6,
-    "longMarket": null,
-    "shortMarket": null
+    "longMarket": "0xe2393d5f15523931e59f340cffebcde30fa7db1a",
+    "shortMarket": "0xd93db02c88d645e669a3965cd46e72cca137f193"
   },
   "evidenceBase": "/evidence/monad-testnet",
-  "markStaleSeconds": 3600
+  "markStaleSeconds": 3600,
+  "variants": {
+    "fast-demo": {
+      "label": "Fast demo",
+      "blurb": "A five-minute series that has already settled, with its refusals on record.",
+      "series": {
+        "name": "H100 fast demo",
+        "hardware": "NVIDIA H100 80GB",
+        "units": "USD per GPU-hour",
+        "dataMode": "DEMO",
+        "source": {
+          "name": "Composite H100 SXM on-demand price (median of public sources)",
+          "summary": "The live series uses the median of four public H100 SXM prices. This five-minute series does not.",
+          "demo": "Synthetic prices from a loopback demo source, delivered by the CRE CLI in simulation. No market data is attached to this series.",
+          "minValid": null,
+          "components": [],
+          "componentsAsOf": null,
+          "sanityBand": null,
+          "bounds": null
+        }
+      },
+      "evidenceBase": "/evidence/monad-testnet/fast-demo",
+      "evidenceTitle": "Fast demo series (synthetic data, 5-minute period)"
+    }
+  },
+  "collateralHelp": {
+    "kuruToken": "This is Kuru's test USDC, the same token Kuru trades against. Judges get it from Kuru.",
+    "deployerToken": "Test collateral is sent on request. This token is a testnet stand-in that only its deployer can mint."
+  },
+  "evidenceTitle": "Live series"
 }

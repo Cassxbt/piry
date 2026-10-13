@@ -1,24 +1,24 @@
 import { Src } from "../../components/Src";
-import { config } from "../../config";
-import { useMark } from "../../hooks/chain";
+import type { SeriesSubject } from "../../config/types";
+import { useSeriesMark } from "../../hooks/chain";
 import { useMarkRounds } from "../../hooks/ledger";
 import { shortHash, usd, utc } from "../../lib/format";
 import { markLabel } from "../../lib/labels";
 import type { MarketSnapshot } from "../../lib/reads";
 
-export function Rounds({ snapshot }: { snapshot: MarketSnapshot }) {
-  const mark = useMark();
+export function Rounds({ subject, snapshot }: { subject: SeriesSubject; snapshot: MarketSnapshot }) {
+  const mark = useSeriesMark(subject);
   const m = mark.data;
   const latest = m?.status === "ok" ? (m.isFinal ? m.roundId - 1n : m.roundId) : undefined;
-  const rounds = useMarkRounds(latest);
-  if (!config.contracts.markFeed) return null;
+  const rounds = useMarkRounds(subject, latest);
+  if (!subject.contracts.markFeed) return null;
   const pd = snapshot.terms.priceDecimals;
 
   return (
     <div className="panel">
       <div className="panel-head">
         <span className="label">Mark feed rounds</span>
-        <Src contract="PiryMarkFeed" address={config.contracts.markFeed} block={m?.status === "ok" ? m.block : null} />
+        <Src contract="PiryMarkFeed" address={subject.contracts.markFeed} block={m?.status === "ok" ? m.block : null} />
       </div>
       <div className="panel-pad stack">
         <p className="sub">

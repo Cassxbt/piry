@@ -1,12 +1,13 @@
 import { Src } from "../../components/Src";
 import { config } from "../../config";
+import type { SeriesSubject } from "../../config/types";
 import { useLifecycle } from "../../hooks/lifecycle";
 import { blockLabel, utc } from "../../lib/format";
 import type { MarketSnapshot } from "../../lib/reads";
 import { TxLink } from "./shared";
 
-export function Lifecycle({ snapshot }: { snapshot: MarketSnapshot }) {
-  const lifecycle = useLifecycle(snapshot);
+export function Lifecycle({ subject, snapshot }: { subject: SeriesSubject; snapshot: MarketSnapshot }) {
+  const lifecycle = useLifecycle(snapshot, subject);
   const data = lifecycle.data;
   if (!data) return null;
   const withTx = data.steps.filter((s) => s.step.tx);
@@ -16,7 +17,7 @@ export function Lifecycle({ snapshot }: { snapshot: MarketSnapshot }) {
     <div className="panel">
       <div className="panel-head">
         <span className="label">Run log, checked transaction by transaction</span>
-        <a className="src" href={`${config.evidenceBase}/lifecycle.json`} target="_blank" rel="noreferrer">lifecycle.json</a>
+        <a className="src" href={`${subject.evidenceBase}/lifecycle.json`} target="_blank" rel="noreferrer">lifecycle.json</a>
       </div>
       <div className="panel-pad stack">
         <p className="sub">
@@ -41,7 +42,7 @@ export function Lifecycle({ snapshot }: { snapshot: MarketSnapshot }) {
             </div>
           ))}
         </div>
-        <Src contract="Forwarder, market, feed receipts" address={config.contracts.forwarder} block={snapshot.block.number} />
+        <Src contract="Forwarder, market, feed receipts" address={subject.contracts.forwarder} block={snapshot.block.number} />
       </div>
     </div>
   );
