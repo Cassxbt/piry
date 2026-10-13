@@ -1,0 +1,420 @@
+{
+  "commands": {
+    "piry:hedge": {
+      "aliases": [],
+      "args": {},
+      "description": "Hedge GPU-hours by buying PIRY-L on Kuru within a spending cap. Previews unless --max-premium is given; every transaction goes through the Agent Wallet.",
+      "examples": [
+        "<%= config.bin %> piry hedge --gpu-hours 500",
+        "<%= config.bin %> piry hedge --gpu-hours 500 --max-premium 150 --slippage 100",
+        "<%= config.bin %> piry hedge --gpu-hours 500 --max-premium 1000 --allow-mint"
+      ],
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "gpu-hours": {
+          "description": "Total GPU-hours of compute to hedge",
+          "name": "gpu-hours",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "max-premium": {
+          "description": "Most USDC you will pay. Without it, nothing is sent and a preview is returned",
+          "name": "max-premium",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "slippage": {
+          "description": "Slippage tolerance in basis points (default 100 = 1%)",
+          "name": "slippage",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "allow-mint": {
+          "description": "If Kuru has no PIRY-L market, mint claim pairs instead (locks 1 USDC per claim)",
+          "name": "allow-mint",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "short-to": {
+          "description": "With --allow-mint: address that receives the PIRY-S leg",
+          "name": "short-to",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "kuru-market": {
+          "description": "Kuru order book for PIRY-L/USDC (defaults to PIRY_KURU_MARKET)",
+          "name": "kuru-market",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "kuru-short-market": {
+          "description": "Kuru order book for PIRY-S/USDC, used to sell the short leg when minting (defaults to PIRY_KURU_SHORT_MARKET)",
+          "name": "kuru-short-market",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "piry:hedge",
+      "pluginAlias": "mm-plugin-piry",
+      "pluginName": "mm-plugin-piry",
+      "pluginType": "core",
+      "strict": true,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "piry",
+        "hedge.js"
+      ]
+    },
+    "piry:position": {
+      "aliases": [],
+      "args": {},
+      "description": "Show Piry claims held (wallet and Kuru trading balance), their mark value, and the settlement status. Read-only.",
+      "examples": [
+        "<%= config.bin %> piry position",
+        "<%= config.bin %> piry position --owner 0x... --json"
+      ],
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "owner": {
+          "description": "Address to inspect (defaults to the Agent Wallet's active wallet)",
+          "name": "owner",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "piry:position",
+      "pluginAlias": "mm-plugin-piry",
+      "pluginName": "mm-plugin-piry",
+      "pluginType": "core",
+      "strict": true,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "piry",
+        "position.js"
+      ]
+    },
+    "piry:quote": {
+      "aliases": [],
+      "args": {},
+      "description": "Show the live Piry H100 index, the hedge band and how many claims hedge a number of GPU-hours. Read-only.",
+      "examples": [
+        "<%= config.bin %> piry quote",
+        "<%= config.bin %> piry quote --gpu-hours 500 --json",
+        "<%= config.bin %> piry quote --gpu-hours 500 --sources"
+      ],
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "gpu-hours": {
+          "description": "GPU-hours of compute to size a hedge for",
+          "name": "gpu-hours",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "kuru-market": {
+          "description": "Kuru order book for PIRY-L/USDC (defaults to PIRY_KURU_MARKET)",
+          "name": "kuru-market",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "sources": {
+          "description": "Also read the four public price sources live",
+          "name": "sources",
+          "allowNo": false,
+          "type": "boolean"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "piry:quote",
+      "pluginAlias": "mm-plugin-piry",
+      "pluginName": "mm-plugin-piry",
+      "pluginType": "core",
+      "strict": true,
+      "requiresAuth": false,
+      "requiresInit": false,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "piry",
+        "quote.js"
+      ]
+    },
+    "piry:redeem": {
+      "aliases": [],
+      "args": {},
+      "description": "After settlement: withdraw claims from Kuru if needed and redeem them for USDC with a minimum-payout guard.",
+      "examples": [
+        "<%= config.bin %> piry redeem",
+        "<%= config.bin %> piry redeem --min-payout 80"
+      ],
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "min-payout": {
+          "description": "Minimum USDC payout accepted (default: the exact previewed payout)",
+          "name": "min-payout",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "kuru-market": {
+          "description": "Unused for redeeming; accepted for symmetry",
+          "name": "kuru-market",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "piry:redeem",
+      "pluginAlias": "mm-plugin-piry",
+      "pluginName": "mm-plugin-piry",
+      "pluginType": "core",
+      "strict": true,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "piry",
+        "redeem.js"
+      ]
+    },
+    "piry:unwind": {
+      "aliases": [],
+      "args": {},
+      "description": "Close a hedge before settlement: merge PIRY-L/PIRY-S pairs back into USDC, or sell PIRY-L on Kuru with a minimum-proceeds floor.",
+      "examples": [
+        "<%= config.bin %> piry unwind",
+        "<%= config.bin %> piry unwind --claims 100 --method sell --min-proceeds 40"
+      ],
+      "flags": {
+        "format": {
+          "char": "f",
+          "description": "Output format: text | json | toon (defaults to text in TTY, json when piped)",
+          "name": "format",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "options": [
+            "text",
+            "json",
+            "toon"
+          ],
+          "type": "option"
+        },
+        "json": {
+          "description": "Shorthand for --format=json",
+          "name": "json",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "toon": {
+          "description": "Shorthand for --format=toon",
+          "name": "toon",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "verbose": {
+          "char": "v",
+          "description": "Show debug logs on stderr. Use this for troubleshooting",
+          "name": "verbose",
+          "allowNo": false,
+          "type": "boolean"
+        },
+        "claims": {
+          "description": "PIRY-L claims to unwind (default: all held)",
+          "name": "claims",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "method": {
+          "description": "auto, merge or sell (default auto: merge pairs first, sell the rest on Kuru)",
+          "name": "method",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "slippage": {
+          "description": "Slippage tolerance in basis points for a Kuru sale (default 100)",
+          "name": "slippage",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "min-proceeds": {
+          "description": "Refuse to sell for less than this many USDC in total",
+          "name": "min-proceeds",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        },
+        "kuru-market": {
+          "description": "Kuru order book for PIRY-L/USDC (defaults to PIRY_KURU_MARKET)",
+          "name": "kuru-market",
+          "hasDynamicHelp": false,
+          "multiple": false,
+          "type": "option"
+        }
+      },
+      "hasDynamicHelp": false,
+      "hiddenAliases": [],
+      "id": "piry:unwind",
+      "pluginAlias": "mm-plugin-piry",
+      "pluginName": "mm-plugin-piry",
+      "pluginType": "core",
+      "strict": true,
+      "isESM": true,
+      "relativePath": [
+        "dist",
+        "commands",
+        "piry",
+        "unwind.js"
+      ]
+    }
+  },
+  "version": "0.1.0"
+}

@@ -1,0 +1,120 @@
+{
+  "name": "mm-plugin-piry",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Hedge GPU compute costs from a MetaMask Agent Wallet with capped Piry claims on Monad",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "oclif-plugin",
+    "metamask",
+    "agent-wallet",
+    "monad",
+    "piry",
+    "gpu",
+    "hedging"
+  ],
+  "files": [
+    "dist",
+    "oclif.manifest.json",
+    "skills"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && oclif manifest",
+    "prepack": "npm run build",
+    "typecheck": "tsc -p tsconfig.check.json",
+    "test": "node --import tsx --test \"test/**/*.test.ts\""
+  },
+  "oclif": {
+    "bin": "mm",
+    "commands": "./dist/commands",
+    "topicSeparator": " ",
+    "topics": {
+      "piry": {
+        "description": "Hedge GPU rental costs with capped Piry claims on Monad"
+      }
+    }
+  },
+  "mm": {
+    "schemaVersion": 1,
+    "minCliVersion": ">=6.2.0 <8.0.0",
+    "capabilities": [],
+    "commands": [
+      {
+        "id": "piry:quote",
+        "capabilities": [],
+        "dataAccess": [],
+        "targetChains": [
+          10143
+        ]
+      },
+      {
+        "id": "piry:position",
+        "capabilities": [
+          "wallet-read"
+        ],
+        "dataAccess": [
+          "accounts"
+        ],
+        "targetChains": [
+          10143
+        ]
+      },
+      {
+        "id": "piry:hedge",
+        "capabilities": [
+          "wallet-read",
+          "wallet-submit"
+        ],
+        "dataAccess": [
+          "accounts"
+        ],
+        "targetChains": [
+          10143
+        ]
+      },
+      {
+        "id": "piry:unwind",
+        "capabilities": [
+          "wallet-read",
+          "wallet-submit"
+        ],
+        "dataAccess": [
+          "accounts"
+        ],
+        "targetChains": [
+          10143
+        ]
+      },
+      {
+        "id": "piry:redeem",
+        "capabilities": [
+          "wallet-read",
+          "wallet-submit"
+        ],
+        "dataAccess": [
+          "accounts"
+        ],
+        "targetChains": [
+          10143
+        ]
+      }
+    ]
+  },
+  "peerDependencies": {
+    "@metamask/agent-wallet": "^6.2.0 || ^7.0.0"
+  },
+  "dependencies": {
+    "@toxicflow-labs/ts-sdk": "0.2.0",
+    "viem": "2.57.4"
+  },
+  "devDependencies": {
+    "@metamask/agent-wallet": "7.1.0",
+    "@types/node": "22.20.5",
+    "@types/semver": "7.7.1",
+    "oclif": "4.24.0",
+    "semver": "7.8.5",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3"
+  }
+}

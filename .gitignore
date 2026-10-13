@@ -95,6 +95,12 @@
 !/deployments/series.composite-h100.example.json
 !/contracts/PiryShortFeed.sol
 !/test/PiryShortFeed.t.sol
+!/plugins/
+/plugins/*
+!/plugins/metamask-piry/
+/plugins/metamask-piry/node_modules/
+/plugins/metamask-piry/dist/
+/plugins/metamask-piry/RESEARCH.md
 !/app/
 /app/screenshots/
 /app/node_modules/
