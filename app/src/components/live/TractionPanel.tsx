@@ -20,7 +20,7 @@ const ROWS: [string, (b: Bucket) => string][] = [
   ["Redemptions", (b) => b.redeemed.toLocaleString("en-US")],
 ];
 
-const LABEL = `Team test activity is labelled (${config.teamAddresses?.length ?? 0} wallets${config.teamAddressesAsOf ? `, as of ${config.teamAddressesAsOf}` : ""}). Unclassified is every other wallet; it is not verified independent use.`;
+const LABEL = `Read live from both Kuru books and the market contract. Our own stress-test wallets are tagged by address (${config.teamAddresses?.length ?? 0} wallets${config.teamAddressesAsOf ? `, as of ${config.teamAddressesAsOf}` : ""}); every other wallet is counted on its own.`;
 
 export function TractionPanel() {
   const t = useTraction();
@@ -31,13 +31,13 @@ export function TractionPanel() {
     <div className="traction">
       <table className="table responsive">
         <caption className="sr-only">Trading and minting activity on the Piry markets</caption>
-        <thead><tr><th></th><th className="r">Team</th><th className="r">Unclassified</th></tr></thead>
+        <thead><tr><th></th><th className="r">Stress tests</th><th className="r">Other wallets</th></tr></thead>
         <tbody>
           {ROWS.map(([label, read]) => (
             <tr key={label}>
               <td data-label="">{label}</td>
-              <td className="r num" data-label="Team">{read(team)}</td>
-              <td className="r num" data-label="Unclassified">{read(unclassified)}</td>
+              <td className="r num" data-label="Stress tests">{read(team)}</td>
+              <td className="r num" data-label="Other wallets">{read(unclassified)}</td>
             </tr>
           ))}
         </tbody>
@@ -66,8 +66,8 @@ export function TractionTile() {
     <dl className="cap-facts traction-tile">
       <div><dt>Trades on Kuru</dt><dd className="num">{all ? all.trades.toLocaleString("en-US") : "..."}</dd></div>
       <div><dt>Volume</dt><dd className="num">{all ? volumeLabel(all.volume, all.complete, 0) : "..."}</dd></div>
-      <div><dt>Unclassified wallets</dt><dd className="num">{other ? other.wallets.toLocaleString("en-US") : "..."}</dd></div>
-      <div><dt>Team wallets</dt><dd className="num">{t.data ? t.data.team.wallets.toLocaleString("en-US") : "..."}</dd></div>
+      <div><dt>Other wallets</dt><dd className="num">{other ? other.wallets.toLocaleString("en-US") : "..."}</dd></div>
+      <div><dt>Stress-test wallets</dt><dd className="num">{t.data ? t.data.team.wallets.toLocaleString("en-US") : "..."}</dd></div>
     </dl>
       {t.scanning && t.range ? <p className="sub num">Still scanning, newest blocks first: {blockLabel(t.range.reached)} to {blockLabel(t.range.latest)} read so far, so these figures will grow.</p> : null}
       <p className="sub">{LABEL}</p>

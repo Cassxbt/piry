@@ -178,7 +178,7 @@ export default function Home() {
           <Reveal delay={0.12}>
             <p className="mono traction-kicker">TRACTION ON KURU</p>
             <TractionTile />
-            <p className="block-link"><SiteLink to="/evidence" className="text-link">Full breakdown, team versus unclassified</SiteLink></p>
+            <p className="block-link"><SiteLink to="/evidence" className="text-link">Full market activity, read live from chain</SiteLink></p>
           </Reveal>
         </div>
       </section>

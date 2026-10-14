@@ -26,7 +26,7 @@ export default function EvidencePage() {
       <section className="block" aria-labelledby="traction-title">
         <div className="wrap">
           <Reveal>
-            <BlockHead kicker="Traction" title={<>Who has used the markets, <em>and who is us</em></>} lede="Trades on both Kuru books and pair activity on the market contract, split into labelled team wallets and everyone else, who are unclassified rather than verified independent users." id="traction-title" />
+            <BlockHead kicker="Traction" title={<>Market activity, <em>read live from chain</em></>} lede="Every fill on both Kuru books and every mint and merge on the market contract, straight from Monad. Our stress-test wallets are tagged by address; every other wallet is counted on its own." id="traction-title" />
           </Reveal>
           <Reveal delay={0.05}><TractionPanel /></Reveal>
         </div>
