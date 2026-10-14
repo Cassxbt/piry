@@ -121,3 +121,6 @@
 !/workflow/preflight.ts
 !/workflow/runtime-test/chain.ts
 !/workflow/runtime-test/keeper.test.ts
+!/.github/
+/.github/*
+!/.github/workflows/
