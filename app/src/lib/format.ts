@@ -13,12 +13,29 @@ export function fixed(raw: bigint, decimals: number, fractionDigits = 2): string
 
 export const usd = (raw: bigint, decimals: number, fractionDigits = 2) => `$${fixed(raw, decimals, fractionDigits)}`;
 
+// Dollars for quotes and costs, rounded half up to the cent: a cost shown as $0 or truncated down understates what is paid.
+export function usdRounded(raw: bigint, decimals: number): string {
+  const negative = raw < 0n;
+  const abs = negative ? -raw : raw;
+  const unit = 10n ** BigInt(Math.max(decimals - 2, 0));
+  const cents = (abs + unit / 2n) / unit;
+  return `${negative && cents > 0n ? "-" : ""}$${fixed(cents * unit, decimals, 2)}`;
+}
+
 export function parseAmount(text: string, decimals: number): bigint | null {
   const trimmed = text.trim().replace(/,/g, "");
   if (!/^\d*\.?\d*$/.test(trimmed) || trimmed === "" || trimmed === ".") return null;
   const [, fraction = ""] = trimmed.split(".");
   if (fraction.length > decimals) return null;
   return parseUnits(trimmed, decimals);
+}
+
+export function amountProblem(text: string, decimals: number): string | null {
+  const trimmed = text.trim().replace(/,/g, "");
+  if (trimmed === "") return "Enter an amount.";
+  const parsed = parseAmount(trimmed, decimals);
+  if (parsed !== null) return parsed === 0n ? "Enter an amount." : null;
+  return /^\d*\.\d+$/.test(trimmed) ? `Use at most ${decimals} decimal places.` : "Enter a valid amount.";
 }
 
 export const shortAddress = (value: string) => `${value.slice(0, 6)}…${value.slice(-4)}`;

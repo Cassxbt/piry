@@ -10,10 +10,11 @@ import { config, primarySubject } from "../config";
 import { useMark, useMarket, useSeriesShortMark } from "../hooks/chain";
 import { hedgeBasisNote, useExampleSize, useHedgeQuote } from "../hooks/hedgeQuote";
 import { breakEvenIndex, chartDomain, claimsToHold, lockedMonthlyBill, lockedOwnerIncome, maxPayout, outcomeFor, regimeOf, type Exposure, type HedgeSide } from "../lib/hedge";
-import { fixed, parseAmount, usd } from "../lib/format";
+import { fixed, parseAmount, usd, usdRounded } from "../lib/format";
 import { payouts } from "../lib/payout";
 
 const ILLUSTRATIVE_DECIMALS = 6;
+const MAX_PRICE = 1000;
 
 function integerOrNull(text: string, max: number): bigint | null {
   if (!/^\d+$/.test(text.trim())) return null;
@@ -61,9 +62,14 @@ export function Calculator() {
 
   const g = integerOrNull(gpus, 100_000);
   const h = integerOrNull(hours, 744);
-  const p = parseAmount(price, pd);
+  const parsedPrice = parseAmount(price, pd);
+  const priceError =
+    parsedPrice === null ? "Enter a price such as 3.00." : parsedPrice === 0n ? "Price must be above zero." : Number(parsedPrice) / 10 ** pd > MAX_PRICE ? `Price must be no more than $${MAX_PRICE.toLocaleString("en-US")} per GPU-hour.` : null;
+  const p = priceError === null ? parsedPrice : null;
   const bandOk = lower !== null && upper !== null && lower < upper;
   const inputsOk = g !== null && h !== null && p !== null && bandOk;
+  const inputError =
+    g === null ? "Enter a whole number from 1 to 100,000 GPUs." : h === null ? "Enter a whole number from 1 to 744 hours." : priceError ?? (bandOk ? null : "Set a floor and a cap, with the cap above the floor.");
 
   const calc = useMemo(() => {
     if (!inputsOk || lower === null || upper === null) return null;
@@ -93,7 +99,7 @@ export function Calculator() {
   const domain = chartDomain(L, U, today);
   const scrub = scrubOverride ?? today;
 
-  const money = (raw: bigint) => usd(raw, cd, 0);
+  const money = (raw: bigint) => usdRounded(raw, cd);
   const row = (price: number) => {
     if (!calc) return null;
     return outcomeFor(side, calc.exposure, calc.claims, premium, BigInt(Math.round(price * 10 ** pd)));
@@ -168,7 +174,7 @@ export function Calculator() {
               }}
               unit="$/GPU-h"
               hint={indexPrice !== null ? "prefilled from the feed" : undefined}
-              error={p === null ? "Enter a price such as 3.00." : null}
+              error={priceError}
             />
             {!live ? (
               <>
@@ -231,7 +237,15 @@ export function Calculator() {
                   <>
                     <span className="figure num">{calc ? money(premium) : "-"}</span>
                     <span className="cap">
-                      <strong>Kuru listing pending</strong>, so there is no ask to price against. Shown: {premiumBasis}.
+                      {inputError ? (
+                        <>
+                          <strong>Fix the inputs:</strong> {inputError}
+                        </>
+                      ) : (
+                        <>
+                          <strong>Kuru listing pending</strong>, so there is no ask to price against. Shown: {premiumBasis}.
+                        </>
+                      )}
                     </span>
                   </>
                 )}

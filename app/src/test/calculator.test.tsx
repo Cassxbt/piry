@@ -72,4 +72,28 @@ describe("Calculator", () => {
     expect(screen.getByText(/Sell PIRY-L, keep PIRY-S/)).toBeTruthy();
     expect(screen.getAllByText(/at or below \$3\./).length).toBeGreaterThan(0);
   });
+
+  it("shows cost cards to the cent, rounded", async () => {
+    render(<Calculator />);
+    await waitFor(() => expect((screen.getByLabelText(/Hours per month/) as HTMLInputElement).value).toBe("50"));
+    fireEvent.change(screen.getByLabelText(/GPUs rented/), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText(/Hours per month/), { target: { value: "1" } });
+    await waitFor(() => expect(screen.getAllByText("$3.50").length).toBeGreaterThan(0));
+  });
+
+  it("names the invalid input instead of claiming the Kuru listing is pending", async () => {
+    render(<Calculator />);
+    await waitFor(() => expect((screen.getByLabelText(/Hours per month/) as HTMLInputElement).value).toBe("50"));
+    fireEvent.change(screen.getByLabelText(/GPUs rented/), { target: { value: "abc" } });
+    await waitFor(() => expect(screen.getAllByText(/Enter a whole number from 1 to 100,000/).length).toBeGreaterThan(1));
+    expect(screen.queryByText(/Kuru listing pending/)).toBeNull();
+  });
+
+  it.each([["0", /above zero/], ["5000", /no more than/], ["-1", /such as 3\.00/]])("rejects the price %s with a message", async (value, message) => {
+    render(<Calculator />);
+    await waitFor(() => expect((screen.getByLabelText(/Hours per month/) as HTMLInputElement).value).toBe("50"));
+    fireEvent.change(screen.getByLabelText(/Current price/), { target: { value } });
+    await waitFor(() => expect(screen.getAllByText(message).length).toBeGreaterThan(1));
+    expect(screen.queryByText(/Kuru listing pending/)).toBeNull();
+  });
 });

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Hex } from "viem";
 import settings from "../config/monad-testnet.json";
-import { decodeFills, summarizeTraction } from "../lib/traction";
+import type { LogSource } from "../lib/logsClient";
+import { decodeFills, scanTraction, summarizeTraction } from "../lib/traction";
 
 const team = "0x66d71a8612Fbf6ab69340Bf82aB431e1Ad30b5c3" as const;
 const other = "0x1111111111111111111111111111111111111111" as const;
@@ -92,5 +93,55 @@ describe("configured team list", () => {
 
   it("scans from the market deployment block", () => {
     expect(settings.tractionFromBlock).toBe(70409792);
+  });
+});
+
+describe("scanTraction", () => {
+  const compute = "0xe3Aab2F36601cEC8d217DA5497fC3FE00ed22538" as const;
+  const packedHex = `0x${record(5000n, 2_000_000n)}` as Hex;
+  const trade = (block: bigint) => ({ address: market, eventName: "TradesPacked", blockNumber: block, args: { executor: other, packedTrades: packedHex } });
+  const minted = (block: bigint) => ({ address: compute, eventName: "PairsMinted", blockNumber: block, args: { account: other } });
+  type Query = { fromBlock: bigint; toBlock: bigint };
+  const source = (getLogs: (q: Query) => Promise<unknown[]>) => ({ client: { getLogs }, maxRange: 100, name: "test" }) as unknown as LogSource;
+  const args = { markets: [market], computeMarket: compute, fromBlock: 1n, toBlock: 400n, maxRequests: 10 };
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("asks for trades and pair events in one request per block range", async () => {
+    const calls: Query[] = [];
+    const out = await scanTraction(
+      source(async (q) => { calls.push(q); return q.fromBlock === 101n ? [trade(150n), minted(160n)] : []; }),
+      args,
+    );
+    expect(calls).toHaveLength(4);
+    expect(out.trades).toHaveLength(1);
+    expect(out.pairs).toEqual([{ kind: "minted", account: other }]);
+    expect(out.reachedBlock).toBe(1n);
+  });
+
+  it("reports progress only for the unbroken newest-first range that has finished", async () => {
+    const release = new Map<bigint, () => void>();
+    const progress: { reached: bigint; trades: number }[] = [];
+    const run = scanTraction(
+      source(async (q) => {
+        await new Promise<void>((resolve) => release.set(q.fromBlock, resolve));
+        return q.fromBlock === 201n || q.fromBlock === 301n ? [trade(q.fromBlock + 50n)] : [];
+      }),
+      args,
+      (p) => progress.push({ reached: p.reachedBlock, trades: p.trades.length }),
+    );
+    await tick();
+    release.get(201n)!();
+    await tick();
+    expect(progress).toEqual([]);
+    release.get(301n)!();
+    await tick();
+    expect(progress).toEqual([{ reached: 201n, trades: 2 }]);
+    release.get(1n)!();
+    await tick();
+    expect(progress).toHaveLength(1);
+    release.get(101n)!();
+    const out = await run;
+    expect(progress.at(-1)).toEqual({ reached: 1n, trades: 2 });
+    expect(out.reachedBlock).toBe(1n);
   });
 });

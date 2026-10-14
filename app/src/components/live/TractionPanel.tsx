@@ -47,7 +47,7 @@ export function TractionPanel() {
       </p>
       <p className="sub num">
         {t.range
-          ? `Scanned blocks ${blockLabel(t.range.reached)} to ${blockLabel(t.range.latest)}${t.partial ? `; the scan stopped before the start block ${blockLabel(t.range.start)}, so older activity is not counted` : `, from the ComputeMarket deployment block ${blockLabel(t.range.start)}`}.`
+          ? `Scanned blocks ${blockLabel(t.range.reached)} to ${blockLabel(t.range.latest)}${t.scanning ? `; still scanning back towards the start block ${blockLabel(t.range.start)}, so these figures will grow` : t.partial ? `; the scan stopped before the start block ${blockLabel(t.range.start)}, so older activity is not counted` : `, from the ComputeMarket deployment block ${blockLabel(t.range.start)}`}.`
           : null}
         {" "}Volume reads "partial" or "unavailable" when a book's price scale could not be read.
       </p>
@@ -69,6 +69,7 @@ export function TractionTile() {
       <div><dt>Unclassified wallets</dt><dd className="num">{other ? other.wallets.toLocaleString("en-US") : "..."}</dd></div>
       <div><dt>Team wallets</dt><dd className="num">{t.data ? t.data.team.wallets.toLocaleString("en-US") : "..."}</dd></div>
     </dl>
+      {t.scanning && t.range ? <p className="sub num">Still scanning, newest blocks first: {blockLabel(t.range.reached)} to {blockLabel(t.range.latest)} read so far, so these figures will grow.</p> : null}
       <p className="sub">{LABEL}</p>
     </div>
   );

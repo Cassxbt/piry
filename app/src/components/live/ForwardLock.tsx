@@ -1,5 +1,5 @@
 import { lockedMonthlyBill, lockedOwnerIncome, monthlyBill, outcomeFor, type Exposure, type HedgeSide } from "../../lib/hedge";
-import { usd } from "../../lib/format";
+import { usdRounded } from "../../lib/format";
 import { raw, trimmed } from "../../lib/numbers";
 
 interface Props {
@@ -17,7 +17,7 @@ export function ForwardLock({ exposure, claims, premium, today, side = "renter" 
   const pd = exposure.priceDecimals;
   const L = raw(exposure.band.lower, pd);
   const U = raw(exposure.band.upper, pd);
-  const money = (v: bigint) => usd(v, cd, 0);
+  const money = (v: bigint) => usdRounded(v, cd);
   if (today >= U || today < L) return null;
   const todayAmount = monthlyBill(exposure, BigInt(Math.round(today * 10 ** pd)));
   const gap = (held: bigint) => (held === todayAmount ? "level with today\u2019s" : `${money(held > todayAmount ? held - todayAmount : todayAmount - held)} ${held > todayAmount ? "above" : "below"} today\u2019s`);

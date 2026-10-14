@@ -2,6 +2,7 @@ import { getAbiItem, parseAbiItem, type Address, type Hex } from "viem";
 import { computeMarketAbi } from "../abi";
 import { quoteNotional, type MarketScale } from "./kuruMath";
 import type { LogSource } from "./logsClient";
+import { SCAN_CONCURRENCY } from "./rateLimit";
 
 // Kuru V2 OrderBook, from the SDK's combined ABI. One event per taker order; packedTrades holds one 64-byte record per fill.
 export const tradesPacked = parseAbiItem(
@@ -98,37 +99,57 @@ export function summarizeTraction(logs: TractionLogs, team: readonly Address[], 
   return result;
 }
 
-// Newest chunks first and capped, like the other log scans; reachedBlock says how far back it got.
+export type TractionScan = TractionLogs & { reachedBlock: bigint };
+
+// Newest chunks first and capped, like the other log scans; reachedBlock says how far back it got. Chunks finish out of
+// order, so onProgress is given only the unbroken run of finished chunks from the newest block: every log in it, and
+// no gap behind it, which keeps the reported range true.
 export async function scanTraction(
   source: LogSource,
   args: { markets: Address[]; computeMarket: Address; fromBlock: bigint; toBlock: bigint; maxRequests: number },
-): Promise<TractionLogs & { reachedBlock: bigint }> {
+  onProgress?: (scan: TractionScan) => void,
+): Promise<TractionScan> {
   const step = BigInt(source.maxRange);
   const chunks: [bigint, bigint][] = [];
   for (let to = args.toBlock; to >= args.fromBlock && chunks.length < args.maxRequests; to -= step) {
     chunks.push([to - step + 1n > args.fromBlock ? to - step + 1n : args.fromBlock, to]);
   }
-  const trades: TradeLog[] = [];
-  const pairs: PairLog[] = [];
+  const address = [...args.markets, args.computeMarket];
+  const results: (TractionLogs | undefined)[] = chunks.map(() => undefined);
+  let finished = 0;
   let next = 0;
+  const gather = (count: number): TractionScan => {
+    const gathered: TractionScan = { trades: [], pairs: [], reachedBlock: chunks[count - 1]?.[0] ?? args.toBlock };
+    for (const part of results.slice(0, count) as TractionLogs[]) {
+      gathered.trades.push(...part.trades);
+      gathered.pairs.push(...part.pairs);
+    }
+    return gathered;
+  };
   const worker = async () => {
     while (next < chunks.length) {
-      const [fromBlock, toBlock] = chunks[next++] as [bigint, bigint];
-      const [tradeLogs, pairLogs] = await Promise.all([
-        args.markets.length > 0 ? source.client.getLogs({ address: args.markets, event: tradesPacked, fromBlock, toBlock }) : Promise.resolve([]),
-        source.client.getLogs({ address: args.computeMarket, events: [pairsMinted, pairsMerged, redeemed], fromBlock, toBlock }),
-      ]);
-      for (const log of tradeLogs) {
-        if (log.args.executor && log.args.packedTrades) trades.push({ market: log.address, executor: log.args.executor, fills: decodeFills(log.args.packedTrades) });
-      }
-      for (const log of pairLogs) {
+      const index = next++;
+      const [fromBlock, toBlock] = chunks[index] as [bigint, bigint];
+      const logs = await source.client.getLogs({ address, events: [tradesPacked, pairsMinted, pairsMerged, redeemed], fromBlock, toBlock });
+      const part: TractionLogs = { trades: [], pairs: [] };
+      for (const log of logs) {
+        if (log.eventName === "TradesPacked") {
+          if (log.args.executor && log.args.packedTrades) part.trades.push({ market: log.address, executor: log.args.executor, fills: decodeFills(log.args.packedTrades) });
+          continue;
+        }
         const account = (log.args as { account?: Address }).account;
         if (!account) continue;
-        const kind = log.eventName === "PairsMinted" ? "minted" : log.eventName === "PairsMerged" ? "merged" : "redeemed";
-        pairs.push({ kind, account });
+        part.pairs.push({ kind: log.eventName === "PairsMinted" ? "minted" : log.eventName === "PairsMerged" ? "merged" : "redeemed", account });
+      }
+      results[index] = part;
+      let frontier = finished;
+      while (frontier < chunks.length && results[frontier]) frontier++;
+      if (frontier > finished) {
+        finished = frontier;
+        onProgress?.(gather(frontier));
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(4, chunks.length) }, worker));
-  return { trades, pairs, reachedBlock: chunks.at(-1)?.[0] ?? args.toBlock };
+  await Promise.all(Array.from({ length: Math.min(SCAN_CONCURRENCY, chunks.length) }, worker));
+  return gather(chunks.length);
 }

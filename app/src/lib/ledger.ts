@@ -5,6 +5,7 @@ import {
 import { computeMarketAbi, markFeedAbi, settlementReceiverAbi, simulationReceiverAbi } from "../abi";
 import { fetchText } from "./evidence";
 import { diagnoseMark, diagnoseSettlement, type Diagnosis, type MarkReport, type SettlementReport } from "./diagnose";
+import { SCAN_CONCURRENCY } from "./rateLimit";
 import type { MarketSnapshot } from "./reads";
 
 // Chainlink's KeystoneForwarder (and its mock) emit this for every delivery. result is false when the
@@ -260,7 +261,7 @@ export async function scanReportProcessed(
       for (const log of logs) if (log.transactionHash) hashes.add(log.transactionHash);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(6, chunks.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(SCAN_CONCURRENCY, chunks.length) }, worker));
   return { hashes: [...hashes], fromBlock: reached, toBlock: opts.toBlock, truncated: reached > opts.fromBlock, requests: chunks.length, chunk: opts.chunk, via: "", failedSources: [] };
 }
 

@@ -1,7 +1,7 @@
 {
   "network": "monad-testnet",
   "chainId": 10143,
-  "explorer": "https://testnet.monadexplorer.com",
+  "explorer": "https://testnet.monadscan.com",
   "mode": "DEMO index (synthetic, loopback source); CRE CLI simulate --broadcast through Chainlink MockKeystoneForwarder; operator-gated receivers",
   "contracts": {
     "collateral_PiryTestUSD": "0xc6aFaF08b17C6Be52eF1927889D068Dc138974E8",

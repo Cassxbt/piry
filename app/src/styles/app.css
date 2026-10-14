@@ -203,8 +203,9 @@ a.src:hover { color: var(--ink); text-decoration: underline; }
 .verdict { display: grid; gap: 4px; padding: 18px 20px; border-bottom: 1px solid var(--rule); }
 .verdict h3 { font-family: var(--font-display); font-weight: 340; font-size: 26px; letter-spacing: -0.015em; }
 .checks { display: grid; gap: 0; }
-.check { display: grid; grid-template-columns: 22px 1fr auto; gap: 10px; padding: 12px 0; border-top: 1px solid var(--rule); align-items: baseline; font-size: 14px; }
+.check { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; padding: 12px 0; border-top: 1px solid var(--rule); align-items: baseline; font-size: 14px; }
 .check:first-child { border-top: 0; }
+.check > span { min-width: 0; overflow-wrap: anywhere; }
 .check .mark { font-family: var(--font-mono); font-size: 13px; }
 .check.pass .mark { color: var(--long); }
 .check.fail .mark { color: var(--short); }
@@ -317,6 +318,10 @@ a.src:hover { color: var(--ink); text-decoration: underline; }
   box-shadow: 0 6px 20px rgb(0 0 0 / 0.12); opacity: 0; visibility: hidden; pointer-events: none; transition: opacity 120ms var(--ease);
 }
 .term:hover .term-tip, .term:focus .term-tip, .term:focus-within .term-tip { opacity: 1; visibility: visible; }
+@media (max-width: 640px) {
+  .term { position: static; }
+  .term-tip { position: fixed; left: var(--gutter); right: var(--gutter); bottom: auto; width: auto; max-width: none; margin-top: 6px; }
+}
 
 .judge-access { display: grid; gap: 14px; padding: 22px var(--gutter); border: 1px solid var(--rule-strong); border-radius: var(--radius); background: var(--sunk); }
 .judge-steps { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14px; line-height: 1.5; color: var(--ink-2); }

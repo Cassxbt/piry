@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { erc20Abi } from "viem";
+import { erc20Abi, formatUnits } from "viem";
 import { ActionButton, TxStatus } from "../../components/Action";
 import { Field } from "../../components/Field";
 import { Src } from "../../components/Src";
@@ -8,7 +8,7 @@ import { computeMarketAbi } from "../../abi";
 import { useAction } from "../../hooks/action";
 import { useClient, useChainNow, useHolder, useMarket } from "../../hooks/chain";
 import { useViewer } from "../../hooks/viewer";
-import { fixed, parseAmount } from "../../lib/format";
+import { amountProblem, fixed, parseAmount } from "../../lib/format";
 import { confirmed } from "../../lib/kuru";
 import type { MarketSnapshot } from "../../lib/reads";
 
@@ -18,18 +18,21 @@ export function MintCard({ snapshot }: { snapshot: MarketSnapshot }) {
   const holder = useHolder(snapshot, viewer.address);
   const now = useChainNow(snapshot, market.dataUpdatedAt);
   const pc = useClient();
-  const [amount, setAmount] = useState("100");
-  const action = useAction([viewer.address, chain.id, snapshot.address].join("|"), amount);
+  const [typed, setAmount] = useState<string | null>(null);
 
   const { symbol, decimals } = snapshot.collateral;
   const isKuruToken = snapshot.collateral.address.toLowerCase() === config.kuru.quoteToken.toLowerCase();
   const help = isKuruToken ? config.collateralHelp.kuruToken : config.collateralHelp.deployerToken;
-  const quantity = parseAmount(amount, decimals);
   const balance = holder.data?.collateral;
+  const standard = 100n * 10n ** BigInt(decimals);
+  // Until the user types, offer 100, or all of a smaller balance, so the default is never more than the wallet holds.
+  const amount = typed ?? (balance === undefined ? "100" : balance === 0n ? "" : formatUnits(balance < standard ? balance : standard, decimals));
+  const quantity = parseAmount(amount, decimals);
+  const action = useAction([viewer.address, chain.id, snapshot.address].join("|"), amount);
   const allowance = holder.data?.collateralAllowance ?? 0n;
   const closed = (now ?? snapshot.block.timestamp) >= snapshot.terms.periodEnd;
   const short = quantity !== null && balance !== undefined && quantity > balance;
-  const error = quantity === null || quantity === 0n ? "Enter an amount." : short ? `More than your ${symbol} balance.` : null;
+  const error = amountProblem(amount, decimals) ?? (short ? `More than your ${symbol} balance.` : null);
 
   const mint = () =>
     action.run("Mint", async (op) => {

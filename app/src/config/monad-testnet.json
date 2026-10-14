@@ -4,7 +4,7 @@
     "id": 10143,
     "name": "Monad Testnet",
     "rpcUrl": "https://testnet-rpc.monad.xyz",
-    "explorerUrl": "https://testnet.monadexplorer.com",
+    "explorerUrl": "https://testnet.monadscan.com",
     "nativeSymbol": "MON",
     "getLogsMaxRange": 100,
     "scanMaxRequests": 60,

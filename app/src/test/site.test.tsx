@@ -65,3 +65,21 @@ describe("trimmed", () => {
     expect(trimmed(0.44425, 4, 6)).toBe("0.44425");
   });
 });
+
+describe("phone menu", () => {
+  it("closes on Escape", async () => {
+    vi.stubGlobal("matchMedia", () => ({ matches: false, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} }));
+    const { fireEvent } = await import("@testing-library/react");
+    const { Routes, Route } = await import("react-router-dom");
+    const { SiteLayout } = await import("../components/site/Layout");
+    render(
+      <MemoryRouter>
+        <Routes><Route element={<SiteLayout />}><Route index element={<p>home</p>} /></Route></Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Menu" }));
+    expect(screen.getByRole("button", { name: "Close" }).getAttribute("aria-expanded")).toBe("true");
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "Menu" }).getAttribute("aria-expanded")).toBe("false");
+  });
+});

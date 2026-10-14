@@ -1,6 +1,7 @@
 import { parseAbiItem, type Address, type Hex, type PublicClient } from "viem";
 import { markFeedAbi } from "../abi";
 import type { LogSource } from "./logsClient";
+import { SCAN_CONCURRENCY } from "./rateLimit";
 
 export interface FeedPoint {
   round: bigint;
@@ -82,7 +83,7 @@ export async function scanMarkUpdates(
       }
     }
   };
-  await Promise.all(Array.from({ length: Math.min(4, chunks.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(SCAN_CONCURRENCY, chunks.length) }, worker));
   return { logs: found, reachedBlock: chunks.at(-1)?.[0] ?? toBlock };
 }
 

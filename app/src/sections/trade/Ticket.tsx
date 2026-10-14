@@ -75,15 +75,27 @@ export function Ticket({ snapshot, book, side, defaultBuy, blocked = false }: Pr
   if (!viewer.address) blocker = null;
   else if (rootId === 0n) blocker = "No Kuru balance yet. Deposit below first.";
   else if (type === "market") {
+    // Only plan.amountIn is sent: a partial quote spends less than was typed, so balances are checked against that.
+    const sent = plan?.amountIn ?? amountIn ?? 0n;
     if (amountIn === null || amountIn === 0n) blocker = "Enter an amount.";
-    else if (isBuy && amountIn > quoteFree) blocker = `Only ${fixed(quoteFree, quoteDecimals)} ${config.kuru.quoteSymbol} in your Kuru balance.`;
-    else if (!isBuy && amountIn > claimFree) blocker = `Only ${fixed(claimFree, claimDecimals)} ${symbol} in your Kuru balance.`;
+    else if (isBuy && amountIn < scale.minQuote) blocker = `Spend is below the market minimum of ${fixed(scale.minQuote, quoteDecimals)} ${config.kuru.quoteSymbol}.`;
+    else if (isBuy && sent > quoteFree) blocker = `Only ${fixed(quoteFree, quoteDecimals)} ${config.kuru.quoteSymbol} in your Kuru balance.`;
+    else if (!isBuy && sent > claimFree) blocker = `Only ${fixed(claimFree, claimDecimals)} ${symbol} in your Kuru balance.`;
     else if (estimate.isError || (estimate.data && estimate.data.amountOut === 0n)) blocker = "The book returns nothing for this size.";
     else if (!estimate.data) blocker = "Estimating";
     else if (plan === null) blocker = "The book returns nothing for this size.";
+    else if (isBuy && plan.amountIn < scale.minQuote) blocker = `The book can take only ${fixed(plan.amountIn, quoteDecimals)} ${config.kuru.quoteSymbol}, below the market minimum of ${fixed(scale.minQuote, quoteDecimals)} ${config.kuru.quoteSymbol}.`;
   } else if (limitProblem) blocker = limitProblem;
   else if (isBuy && reserve > quoteFree) blocker = `Needs ${fixed(reserve, quoteDecimals, 4)} ${config.kuru.quoteSymbol} including the maker-fee reserve.`;
   else if (!isBuy && sizeRaw !== null && baseAtoms(sizeRaw, scale) > claimFree) blocker = `Only ${fixed(claimFree, claimDecimals)} ${symbol} in your Kuru balance.`;
+
+  const choose = (change: () => void) => {
+    if (!action.busy) {
+      action.reset();
+      setOutcome(null);
+    }
+    change();
+  };
 
   const submit = async () => {
     setOutcome(null);
@@ -142,12 +154,12 @@ export function Ticket({ snapshot, book, side, defaultBuy, blocked = false }: Pr
     <div className="ticket">
       <div className="row between">
         <div className="segmented" role="group" aria-label="Side">
-          <button type="button" aria-pressed={isBuy} onClick={() => setIsBuy(true)}>Buy {symbol}</button>
-          <button type="button" aria-pressed={!isBuy} onClick={() => setIsBuy(false)}>Sell {symbol}</button>
+          <button type="button" aria-pressed={isBuy} onClick={() => choose(() => setIsBuy(true))}>Buy {symbol}</button>
+          <button type="button" aria-pressed={!isBuy} onClick={() => choose(() => setIsBuy(false))}>Sell {symbol}</button>
         </div>
         <div className="segmented" role="group" aria-label="Order type">
-          <button type="button" aria-pressed={type === "market"} onClick={() => setType("market")}>Market</button>
-          <button type="button" aria-pressed={type === "limit"} onClick={() => setType("limit")}>Limit</button>
+          <button type="button" aria-pressed={type === "market"} onClick={() => choose(() => setType("market"))}>Market</button>
+          <button type="button" aria-pressed={type === "limit"} onClick={() => choose(() => setType("limit"))}>Limit</button>
         </div>
       </div>
 

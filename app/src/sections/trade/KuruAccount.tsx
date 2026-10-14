@@ -132,7 +132,7 @@ export function KuruAccount({ snapshot }: { snapshot: MarketSnapshot }) {
         <div className="stack">
           <div className="segmented" role="group" aria-label="Token">
             {rows.map((r) => (
-              <button key={r.key} type="button" aria-pressed={selected === r.key} onClick={() => setSelected(r.key)}>{r.symbol}</button>
+              <button key={r.key} type="button" aria-pressed={selected === r.key} onClick={() => { if (!action.busy) action.reset(); setSelected(r.key); }}>{r.symbol}</button>
             ))}
           </div>
           <Field
@@ -141,7 +141,7 @@ export function KuruAccount({ snapshot }: { snapshot: MarketSnapshot }) {
             onChange={setAmount}
             unit={row.symbol}
             hint={`wallet ${fixed(inWallet, row.decimals)} · Kuru ${fixed(kuruFree, row.decimals)}`}
-            error={amount && parsed === null ? "Enter a valid amount." : null}
+            error={amount && parsed === null ? "Enter a valid amount." : parsed !== null && parsed > inWallet && parsed > kuruFree ? `More than your available ${row.symbol}.` : null}
           />
           <div className="row">
             <ActionButton label={`Deposit ${row.symbol}`} busy={action.busy} disabled={parsed === null || parsed === 0n || parsed > inWallet || claimBlocked} onRun={deposit} />

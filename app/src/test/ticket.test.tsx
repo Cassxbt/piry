@@ -266,3 +266,57 @@ describe("buying while claims cannot be withdrawn", () => {
     expect(button("Market sell PIRY-L").disabled).toBe(false);
   });
 });
+
+describe("market order amount limits", () => {
+  const blocker = () => screen.getByText(/^Only [\d,.]+ USDC in your Kuru balance\.$/);
+
+  it("refuses a spend below the market minimum and disables the button", async () => {
+    render(ui());
+    fireEvent.change(screen.getByLabelText(/^Spend/), { target: { value: "0.5" } });
+    await waitFor(() => expect(screen.getByText(/below the market minimum of 1\.00 USDC/)).toBeTruthy());
+    expect(button("Market buy PIRY-L").disabled).toBe(true);
+  });
+
+  it("accepts a spend exactly at the market minimum", async () => {
+    m.quote = { amountInUsed: 1_000_000n, amountOut: 2_000_000n };
+    render(ui());
+    await enterAmount("1");
+    expect(screen.queryByText(/market minimum/)).toBeNull();
+    expect(button("Market buy PIRY-L").disabled).toBe(false);
+  });
+
+  it("gates on the amount actually sent, not the typed spend, when the book takes only part", async () => {
+    render(ui());
+    await enterAmount("600");
+    expect(screen.getByText(/Partial fill/)).toBeTruthy();
+    expect(screen.queryByText(/^Only [\d,.]+ USDC in your Kuru balance\.$/)).toBeNull();
+    expect(button("Market buy PIRY-L").disabled).toBe(false);
+    fireEvent.click(button("Market buy PIRY-L"));
+    await waitFor(() => expect(m.swap).toHaveBeenCalled());
+    expect(m.swap.mock.calls.at(-1)?.[1]).toMatchObject({ amountIn: 10_000_000n });
+  });
+
+  it("still blocks when the amount that would be sent exceeds the balance", async () => {
+    m.quote = { amountInUsed: 600_000_000n, amountOut: 1_200_000_000n };
+    render(ui());
+    fireEvent.change(screen.getByLabelText(/^Spend/), { target: { value: "600" } });
+    await waitFor(() => expect(blocker().textContent).toMatch(/Only 500\.00 USDC/));
+    expect(button("Market buy PIRY-L").disabled).toBe(true);
+  });
+});
+
+describe("a finished order's banner", () => {
+  it.each([
+    ["switching to sell", "Sell PIRY-L"],
+    ["switching to a limit order", "Limit"],
+  ])("is cleared by %s", async (_name, target) => {
+    render(ui());
+    await enterAmount("100");
+    fireEvent.click(button("Market buy PIRY-L"));
+    await waitFor(() => expect(screen.getByText(/Market buy confirmed/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Market outcome/)).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: target }));
+    expect(screen.queryByText(/Market buy confirmed/)).toBeNull();
+    expect(screen.queryByText(/Market outcome/)).toBeNull();
+  });
+});

@@ -141,3 +141,22 @@ describe("balance badge", () => {
     expect(screen.queryByText(/^block 4,321$/)).toBeNull();
   });
 });
+
+describe("balance limits", () => {
+  it("says why both buttons are off when the amount is above every balance", () => {
+    render(ui());
+    enter("1000");
+    expect(button("Deposit USDC").disabled).toBe(true);
+    expect(button("Withdraw USDC").disabled).toBe(true);
+    expect(screen.getAllByText("More than your available USDC.").length).toBeGreaterThan(0);
+  });
+
+  it("clears a confirmed deposit when another token is picked", async () => {
+    render(ui());
+    enter("5");
+    fireEvent.click(button("Deposit USDC"));
+    await waitFor(() => expect(screen.getByText(/Deposit confirmed/)).toBeTruthy());
+    pick("PIRY-L");
+    expect(screen.queryByText(/Deposit confirmed/)).toBeNull();
+  });
+});

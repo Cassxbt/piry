@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import publicManifest from "../../../deployments/monad-testnet.public.json";
-import { config, primarySubject } from "../config";
+import { config, explorer, primarySubject } from "../config";
 import { manifestFrom } from "../config/deployment";
 import type { DeploymentManifest, PublicManifest } from "../config/types";
 
@@ -78,5 +78,13 @@ describe("resolved app config (clean-clone smoke check)", () => {
     expect(lower(config.kuru.shortMarket)).toBe(lower(pub.kuru.markets["PIRY-S/USDC"]?.address));
     expect(lower(config.kuru.accountCore)).toBe(lower(pub.kuru.accountCore));
     expect(lower(config.faucet)).toBe(lower(pub.faucet.address));
+  });
+});
+
+describe("explorer links", () => {
+  it("point at monadscan", () => {
+    const hash = `0x${"ab".repeat(32)}`;
+    expect(explorer.tx(hash)).toBe(`https://testnet.monadscan.com/tx/${hash}`);
+    expect(explorer.address("0x1111111111111111111111111111111111111111")).toBe("https://testnet.monadscan.com/address/0x1111111111111111111111111111111111111111");
   });
 });
