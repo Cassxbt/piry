@@ -1,9 +1,23 @@
+<p align="center"><img src="assets/piry-logo.png" alt="Piry" width="420"></p>
+
 # Piry
+
+[![CI](https://github.com/Cassxbt/piry/actions/workflows/ci.yml/badge.svg)](https://github.com/Cassxbt/piry/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Tests](https://img.shields.io/badge/tests-1%2C073%20passing-10b981)
+![Network](https://img.shields.io/badge/network-Monad%20testnet-6E54FF)
+![Kuru](https://img.shields.io/badge/order%20books-Kuru%20V2-111111)
+![Chainlink CRE](https://img.shields.io/badge/oracle-Chainlink%20CRE-375BD2)
+[![Live](https://img.shields.io/badge/live-piry.vercel.app-0c0e0d)](https://piry.vercel.app)
 
 **A hedge that can't liquidate you.** Fully backed, capped claims on the H100 GPU rental price, traded on Kuru's order book and settled by a Chainlink CRE workflow on Monad.
 
 > GPU rent moves every week. Your price to customers doesn't.
 > Piry turns that gap into two tokens you can trade.
+
+[▶ Demo](#-demo) · [Problem](#the-problem) · [Settlement gates](#the-settlement-gates) · [Claims you can check](#claims-you-can-check) · [Traction](#traction) · [Remove a sponsor](#remove-a-sponsor-and-piry-stops) · [Sponsors](#how-it-fits-each-sponsor) · [Contracts](#deployed-contracts) · [Verification](#verification) · [Run it](#run-it-yourself) · [Limits](#security-and-limitations)
+
+## ▶ Demo
 
 | | |
 |---|---|
@@ -219,6 +233,8 @@ Endpoints and rules are bound into the series `specHash`, so config cannot redir
 - **Settlement:** one snapshot taken when settlement executes, up to 24 hours after expiry, under the full-quorum rule.
 
 ## Verification
+
+All suites run in [CI](https://github.com/Cassxbt/piry/actions/workflows/ci.yml) on every push: 1,073 tests.
 
 | Suite | Result (13–14 Oct 2026) |
 |---|---|

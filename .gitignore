@@ -124,3 +124,6 @@
 !/.github/
 /.github/*
 !/.github/workflows/
+!/assets/
+/assets/*
+!/assets/piry-logo.png
