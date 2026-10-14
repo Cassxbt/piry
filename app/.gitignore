@@ -4,3 +4,4 @@ dist
 .fixture-cache
 .playwright-mcp
 .vercel
+/public/evidence/composite/
