@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "market": "0xe3Aab2F36601cEC8d217DA5497fC3FE00ed22538",
+  "entries": [
+    {
+      "txHash": "0x8074c194307d1091d70ffa3fb41c0591588fa934024334f063d7b8e86c9b9a07",
+      "note": "The live series settlement, sent by the keeper through the CRE forwarder 345 s after expiry with all four sources valid."
+    }
+  ],
+  "offchain": []
+}
