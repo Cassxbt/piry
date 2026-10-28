@@ -26,7 +26,9 @@
 | **Technical demo** (2:45) | [youtu.be/Ekf-KVgrEB4](https://youtu.be/Ekf-KVgrEB4) |
 | **Chainlink CRE run** (1:57) | [youtu.be/cjkMjYhwLFY](https://youtu.be/cjkMjYhwLFY) |
 | **MetaMask Agent Wallet plugin** (2:04) | [youtu.be/lpb43_Q0WWo](https://youtu.be/lpb43_Q0WWo) |
-| **Accepted settlement** (CRE report, price $2.658755) | [`0x44b935ac…718338`](https://testnet.monadscan.com/tx/0x44b935ac592035426b2cf07ecacf53b5c824e731a9b32f3ac3126ae60d718338) |
+| **Live series settled on schedule** (19 Oct 2026, via CRE, $3.45, all 4 sources) | [`0x8074c194…9a07`](https://testnet.monadscan.com/tx/0x8074c194307d1091d70ffa3fb41c0591588fa934024334f063d7b8e86c9b9a07) · [verify in your browser](https://piry.vercel.app/evidence) |
+| **Agent redeemed through MetaMask Agent Wallet** (80 PIRY-L → 38 USDC) | [`0x52e3fb0b…e87b`](https://testnet.monadscan.com/tx/0x52e3fb0b2e4d30b065aac8796eca0796c35185bca3f43781c0630e576d55e87b) |
+| **Accepted settlement, fast-demo series** (CRE report, price $2.658755) | [`0x44b935ac…718338`](https://testnet.monadscan.com/tx/0x44b935ac592035426b2cf07ecacf53b5c824e731a9b32f3ac3126ae60d718338) |
 | **Refused replay** (receiver rejects `AlreadySettled`) | [`0x66ebd575…42435d`](https://testnet.monadscan.com/tx/0x66ebd575d1441cadfcfe5a29d9f904c8005ab52081080c7405ca3a0e2f42435d) |
 | **Agent hedge on Kuru** (51 PIRY-L for $23.65 under a $30 cap) | [`0xdef2a91f…1ffe`](https://testnet.monadscan.com/tx/0xdef2a91f0b8e84440962eb1dc993ba45b6b91fbfd6b82398763a0f777dc81ffe) |
 | **Tracks** | Monad Metropolis · Track 1 Onchain Finance · Kuru New Assets · Chainlink CRE · MetaMask Agent Wallet |
@@ -36,7 +38,7 @@
 > **Maturity, stated up front.** Everything below runs on Monad testnet with test USDC.
 > - Contracts, Kuru markets, live index data and the keeper are real.
 > - Settlement runs as a Chainlink CRE CLI simulation (`--broadcast`) through Chainlink's mock forwarder into an operator-gated receiver. The strict DON receiver is written and tested but not deployed.
-> - The live series settles **19 Oct 2026, 12:00 UTC**, in public. Limits are listed in [Security and limitations](#security-and-limitations).
+> - The live series **settled on 19 Oct 2026**, 345 s after expiry, through the CRE workflow with all four sources valid ($3.45; PIRY-L paid $0.475, PIRY-S $0.525). Limits are listed in [Security and limitations](#security-and-limitations).
 
 ## The problem
 
@@ -85,8 +87,10 @@ Every row is falsifiable: open the link or run the command.
 | The index is the median of 4 live sources ($3.4085 on 13 Oct: 2.69 / 2.73 / 4.087 / 4.17) | `make cre-simulate` (no key, no broadcast) |
 | One source dropping moves the index ($3.41 with 4 sources, $2.73 with 3), which is why settlement needs all 4 at first | CRE video at 0:10; `bun test workflow/runtime-test/settlement.test.ts` |
 | A full series ran mint → mark → settle → redeem on chain, collateral back to 0 | [Fast-demo lifecycle](#fast-demo-series-full-lifecycle-on-chain) |
+| The live series settled on schedule via CRE: the evidence hashes to the on-chain value and the median of its 4 sources reproduces 3450000 | [`0x8074c194…`](https://testnet.monadscan.com/tx/0x8074c194307d1091d70ffa3fb41c0591588fa934024334f063d7b8e86c9b9a07) · [piry.vercel.app/evidence](https://piry.vercel.app/evidence) |
+| One asset, one holder, end to end: an agent bought PIRY-L on Kuru, CRE settled the series, and the agent redeemed 80 PIRY-L for 38 USDC through the MetaMask Agent Wallet | buy [`0xdef2a91f…`](https://testnet.monadscan.com/tx/0xdef2a91f0b8e84440962eb1dc993ba45b6b91fbfd6b82398763a0f777dc81ffe) · settle [`0x8074c194…`](https://testnet.monadscan.com/tx/0x8074c194307d1091d70ffa3fb41c0591588fa934024334f063d7b8e86c9b9a07) · redeem [`0x52e3fb0b…`](https://testnet.monadscan.com/tx/0x52e3fb0b2e4d30b065aac8796eca0796c35185bca3f43781c0630e576d55e87b) |
 | A replayed settlement is rejected even when the outer tx succeeds | [`0x66ebd575…`](https://testnet.monadscan.com/tx/0x66ebd575d1441cadfcfe5a29d9f904c8005ab52081080c7405ca3a0e2f42435d) (`ReportProcessed.result = false`) |
-| The live feed is marked by CRE: 128 rounds and counting | [`PiryMarkFeed`](https://testnet.monadscan.com/address/0xE4B79233F8ac4804BABfD6bd065aA6596b0EbE5e) `latestRound()` |
+| The live feed was marked by CRE: 498 rounds through settlement | [`PiryMarkFeed`](https://testnet.monadscan.com/address/0xE4B79233F8ac4804BABfD6bd065aA6596b0EbE5e) `latestRound()` |
 | The live market is fully backed: 8,381 test USDC locked against 8,381 claims per side | [`ComputeMarket`](https://testnet.monadscan.com/address/0xe3Aab2F36601cEC8d217DA5497fC3FE00ed22538) `collateralLocked()` |
 | Live evidence re-verifies in the browser: hash, quorum, median, spec | [piry.vercel.app/evidence](https://piry.vercel.app/evidence), with files in `app/public/evidence/composite/` |
 | An AI agent hedged on Kuru through the MetaMask Agent Wallet, with every receipt checked | approve [`0xa9117b0e…`](https://testnet.monadscan.com/tx/0xa9117b0e299a349ed6f4c88c27d085b64e8702c8a02c63cc3bf5d9746e5a7983) · deposit [`0x27b2645a…`](https://testnet.monadscan.com/tx/0x27b2645a31856a3b7639abb68ea81b944f2c637082e6bdc19d3940d162b3b44d) · swap [`0xdef2a91f…`](https://testnet.monadscan.com/tx/0xdef2a91f0b8e84440962eb1dc993ba45b6b91fbfd6b82398763a0f777dc81ffe) · withdraw [`0xcecc3c4a…`](https://testnet.monadscan.com/tx/0xcecc3c4a34bd3277ddd5e3647fcc7d0e28de5feb2886ba10273e45478f4dc4ed) |
@@ -96,11 +100,11 @@ Every row is falsifiable: open the link or run the command.
 
 - **Two live Kuru markets**, PIRY-L/USDC and PIRY-S/USDC, created by Kuru for Piry's claim tokens. Each is seeded with 8,000 claims of laddered liquidity.
 - **51 trades and $681 of volume** on the two books (live count on the [Market](https://piry.vercel.app/market) and [Evidence](https://piry.vercel.app/evidence) pages). This includes 46 stress-test trades at 28 different sizes, real wallet trades through the app, and two MetaMask Agent Wallet hedges.
-- **128 CRE marks** published on chain by the keeper, which Kuru's withdrawal limiter reads to price the claims.
+- **498 CRE marks** published on chain by the keeper, which Kuru's withdrawal limiter reads to price the claims.
 - **Open to anyone today:** a faucet gives any wallet 100 test USDC, and three funded judge wallets are ready.
 
 **Next:**
-1. Settle the live series on 19 Oct with full quorum.
+1. ~~Settle the live series on 19 Oct with full quorum.~~ Done: settled via CRE, all 4 sources valid. Seeded Kuru orders were cancelled after settlement.
 2. Run weekly H100 series, then H200 and B200, with a period-average (TWAP) option for real bills.
 3. Deploy on a Chainlink DON with the strict receiver.
 4. Pilot on mainnet with one GPU renter and one GPU owner or lender as natural counterparties, plus a designated maker quoting both books.
@@ -112,7 +116,7 @@ Every row is falsifiable: open the link or run the command.
 | **Chainlink CRE** | No price ever reaches the chain. Marks and settlement are produced only by the workflow, and the contracts accept reports only through the CRE forwarder. There is no admin price setter. Without CRE the feed goes stale, Kuru stops moving the claims, and the only exit is the 7-day midpoint fallback. |
 | **Kuru** | No market. A renter could not buy just the long; they would have to mint both legs and find someone to take the short. There would be no price discovery between expiries, no way to unwind early, and no exchange relying on Piry's feed for custody. |
 | **MetaMask Agent Wallet** | The agent path stops. `mm piry` holds no key and has no other way to sign, so an agent could quote but not hedge. |
-| **Monad** | The cadence stops making sense. Every mark is a transaction (128 so far) and every fill settles on an on-chain order book. A 5-minute oracle and per-trade settlement are only cheap on a fast, low-fee chain. |
+| **Monad** | The cadence stops making sense. Every mark is a transaction (498 on the live series) and every fill settles on an on-chain order book. A 5-minute oracle and per-trade settlement are only cheap on a fast, low-fee chain. |
 
 ## How it fits each sponsor
 
@@ -164,7 +168,7 @@ Market parameters: tick 0.0001, minimum order 1 USDC, taker fee 0.07%, maker fee
 
 Monad testnet (chain 10143), explorer [testnet.monadscan.com](https://testnet.monadscan.com). Machine-readable: [`deployments/monad-testnet.public.json`](deployments/monad-testnet.public.json).
 
-**Live series, Piry H100 Composite, settles 2026-10-19 12:00 UTC.** Band $2.50 to $4.50, 6 decimals, max report age 6 h, fallback delay 7 days, collateral Kuru Test USDC.
+**Live series, Piry H100 Composite, settled 2026-10-19 via CRE at $3.45.** Band $2.50 to $4.50, 6 decimals, max report age 6 h, fallback delay 7 days, collateral Kuru Test USDC.
 
 | Contract | Address | Deploy tx |
 |---|---|---|

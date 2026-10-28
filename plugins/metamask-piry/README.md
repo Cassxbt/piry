@@ -91,7 +91,13 @@ Configuration (all optional; the live Kuru markets are built in): `PIRY_KURU_MAR
 | swap | `0xbb5ab624180c2ba9d9f38634fde7974ce0cb029b10ac83fddf3095fdbda1aa71` |
 | withdraw | `0x7c5c446428a6e59a9a285766463f3192ee755f44c7b54293fe823c98c2103728` |
 
-What this shows: the buy path works end to end through the Agent Wallet on chain 10143 once `customEvmChains` is set. What it does not show: `unwind`, `redeem` and the mint fallback have not been submitted through a real wallet; Guard policy enforcement (above); or behavior on any other run, since it is one run. The step confirmation, balance reconciliation, total `--min-proceeds` floor and book-free `redeem` described here were written after that run and are covered by the simulator tests, not by a new real run.
+Second run, after the sizing fix: `mm piry hedge --gpu-hours 40 --max-premium 30` returned `HEDGED`, exactly 51 PIRY-L for 23.649944 USDC with 0 unspent, each step confirmed by its chain receipt (approve `0xa9117b0e299a349ed6f4c88c27d085b64e8702c8a02c63cc3bf5d9746e5a7983`, deposit `0x27b2645a31856a3b7639abb68ea81b944f2c637082e6bdc19d3940d162b3b44d`, swap `0xdef2a91f0b8e84440962eb1dc993ba45b6b91fbfd6b82398763a0f777dc81ffe`, withdraw `0xcecc3c4a34bd3277ddd5e3647fcc7d0e28de5feb2886ba10273e45478f4dc4ed`). `--max-premium 0.50` was refused with `BELOW_MIN_NOTIONAL` before anything was signed.
+
+## Real redemption on the Agent Wallet (28 Oct 2026)
+
+The live series settled on 19 Oct via the Chainlink CRE workflow at $3.45 per GPU-hour, so each PIRY-L pays 0.475 USDC. `mm piry redeem` on the same wallet redeemed all 80 PIRY-L for 38 USDC in one transaction, with the minimum-payout guard set to the on-chain preview: `0x52e3fb0b2e4d30b065aac8796eca0796c35185bca3f43781c0630e576d55e87b`.
+
+What this shows: one holder and one asset, end to end through the Agent Wallet on chain 10143 (`customEvmChains` set): buy on Kuru, settlement by CRE, redemption. It does not show `unwind` or the mint fallback through a real wallet, or Guard spending-policy enforcement (above).
 
 ## Demo script (about 5 minutes)
 
