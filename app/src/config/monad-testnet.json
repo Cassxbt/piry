@@ -61,7 +61,7 @@
         {
           "name": "Verda",
           "detail": "Public price list",
-          "value": "4.087",
+          "value": "4.339",
           "status": "valid",
           "url": null,
           "rule": "Public instance-type list. 1x H100 SXM5 80GB: the cheapest matching instance, in USD per hour.",
@@ -77,7 +77,7 @@
           "why": "An aggregator over many clouds, so one provider's pricing quirks are diluted."
         }
       ],
-      "componentsAsOf": "13 Oct 2026, 09:42 UTC",
+      "componentsAsOf": "19 Oct 2026, 12:06 UTC (the settlement snapshot)",
       "bounds": {
         "min": "0.50",
         "max": "20.00"
