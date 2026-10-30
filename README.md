@@ -31,6 +31,7 @@
 | **Accepted settlement, fast-demo series** (CRE report, price $2.658755) | [`0x44b935ac…718338`](https://testnet.monadscan.com/tx/0x44b935ac592035426b2cf07ecacf53b5c824e731a9b32f3ac3126ae60d718338) |
 | **Refused replay** (receiver rejects `AlreadySettled`) | [`0x66ebd575…42435d`](https://testnet.monadscan.com/tx/0x66ebd575d1441cadfcfe5a29d9f904c8005ab52081080c7405ca3a0e2f42435d) |
 | **Agent hedge on Kuru** (51 PIRY-L for $23.65 under a $30 cap) | [`0xdef2a91f…1ffe`](https://testnet.monadscan.com/tx/0xdef2a91f0b8e84440962eb1dc993ba45b6b91fbfd6b82398763a0f777dc81ffe) |
+| **Launch thread** (X) | [@Piry_trade](https://x.com/Piry_trade/status/2115447560982626488) |
 | **Tracks** | Monad Metropolis · Track 1 Onchain Finance · Kuru New Assets · Chainlink CRE · MetaMask Agent Wallet |
 
 **Team:** cassxbt ([@Cassxbt](https://github.com/Cassxbt)), solo Solidity and full-stack engineer.
